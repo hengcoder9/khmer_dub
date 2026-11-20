@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, Gauge, Languages, Loader2, Mic, ScanText, Sparkles, TriangleAlert, Volume1, Clock4, Merge } from 'lucide-react'
+import { Captions, ChevronDown, Gauge, Languages, Loader2, Mic, ScanText, Sparkles, TriangleAlert, Volume1, Clock4, Merge } from 'lucide-react'
 import type { SttEngine, Translator } from '@shared/types'
 import { LANG_NAMES } from '@shared/translate'
 import { Button } from '@/components/ui/button'
 import { DropdownContent, DropdownItem, DropdownLabel, DropdownMenu, DropdownSeparator, DropdownTrigger, Select, Toggle } from '@/components/ui/controls'
 import { mutate, useActiveEpisode, useProject } from '@/store/project'
-import { generateVoices, mixEpisode, notify, readScreen, transcribe, translate } from '@/lib/pipeline'
+import { generateVoices, listenReadSrt, mixEpisode, notify, readScreen, transcribe, translate } from '@/lib/pipeline'
 import { toast } from 'sonner'
 
 export function ActionRow() {
@@ -84,6 +84,15 @@ export function ActionRow() {
       </Toggle>
 
       <div className="flex-1" />
+
+      <Button
+        size="sm"
+        onClick={run('lr', () => listenReadSrt())}
+        disabled={!!busy || !ep.videoPath}
+        title={t('ar.lrHint', 'Listen to the speech and read on-screen subtitles together, merge them, translate, and save original + translated SRT files')}
+      >
+        {spin('lr', <Captions />)} {t('ar.lr', 'Listen + Read → SRT')}
+      </Button>
 
       <Button variant="outline" size="sm" onClick={run('ocr', () => readScreen())} disabled={!!busy || !ep.videoPath} title={t('ar.ocrHint', 'Read hard-coded subtitles from the video with Gemini vision')}>
         {spin('ocr', <ScanText />)} {t('ar.ocr', 'Read Screen')}

@@ -7,6 +7,7 @@ import type { TResult } from '@shared/translate'
 import { actorStats, autoMatchVoices, matchSpeakers } from '@shared/cast'
 import { newSegment, uid } from '@shared/defaults'
 import { effectiveClips, mapCuesToOutput, totalDuration } from '@shared/ranges'
+import { mergeListenRead } from '@shared/screenmerge'
 import type { Cue } from '@shared/srt'
 import { api, post } from './api'
 import { runJob } from '@/store/jobs'
@@ -132,13 +133,9 @@ function applyCastFromSpeakers(epId: string, speakers: Array<{ id: string; gende
   })
 }
 
-export async function transcribe(engine: SttEngine, epId?: string, opts: { chain?: boolean; ask?: boolean } = {}) {
-  const { chain = true, ask = true } = opts
-  const e = ep(epId)
-  needVideo(e)
+function transcribeJob(e: Episode, engine: SttEngine) {
   const p = P().project!
-  if (ask && e.segments.length && !confirm(`Replace the ${e.segments.length} existing lines with a new transcription?`)) return
-  const r = await runJob<{ language?: string; segments: RawSeg[] }>(
+  return runJob<{ language?: string; segments: RawSeg[] }>(
     'transcribe',
     {
       engine,
@@ -154,6 +151,15 @@ export async function transcribe(engine: SttEngine, epId?: string, opts: { chain
     },
     e.id
   )
+}
+
+export async function transcribe(engine: SttEngine, epId?: string, opts: { chain?: boolean; ask?: boolean } = {}) {
+  const { chain = true, ask = true } = opts
+  const e = ep(epId)
+  needVideo(e)
+  const p = P().project!
+  if (ask && e.segments.length && !confirm(`Replace the ${e.segments.length} existing lines with a new transcription?`)) return
+  const r = await transcribeJob(e, engine)
   const segs: Segment[] = r.segments.map((s) => ({ ...newSegment(s.start, s.end, s.text, s.translated ?? ''), words: s.words }))
   const speakerOf: Record<string, string> = {}
   r.segments.forEach((s, i) => s.speaker && (speakerOf[segs[i].id] = s.speaker))
@@ -431,17 +437,92 @@ export const editedDuration = (e: Episode) => (e.edit.enabled ? totalDuration(ef
 
 // ───────── read screen (OCR) ─────────
 
-export async function readScreen(epId?: string) {
-  const e = ep(epId)
-  needVideo(e)
-  if (e.segments.length && !confirm(`Replace the ${e.segments.length} existing lines with subtitles read from the screen?`)) return
-  const r = await runJob<{ segments: RawSeg[] }>(
+const ocrJob = (e: Episode) =>
+  runJob<{ segments: RawSeg[] }>(
     'ocr',
     { videoPath: e.videoPath, epDir: epDir(e), durationSec: e.durationSec, interval: S().ocrInterval, cropTop: S().ocrCropTop, geminiModel: S().geminiModel },
     e.id
   )
+
+export async function readScreen(epId?: string) {
+  const e = ep(epId)
+  needVideo(e)
+  if (e.segments.length && !confirm(`Replace the ${e.segments.length} existing lines with subtitles read from the screen?`)) return
+  const r = await ocrJob(e)
   updateEpisode(e.id, (x) => ({ ...x, segments: r.segments.map((s) => newSegment(s.start, s.end, s.text, '')), status: 'transcribed' }))
   toast.success(`Read ${r.segments.length} subtitle lines from the screen`)
+}
+
+// ───────── Listen + Read → SRT ─────────
+
+const safeName = (s: string) => s.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim().replace(/[. ]+$/, '') || 'subtitles'
+
+/**
+ * Listen to the speech (Whisper: precise timing) and read the burned-in subtitles (Gemini vision: exact words)
+ * at the same time, merge them, translate to the target language and save original + translated SRT files.
+ */
+export async function listenReadSrt(epId?: string) {
+  const e = ep(epId)
+  needVideo(e)
+  const p = P().project!
+  if (e.segments.length && !confirm(`Replace the ${e.segments.length} existing lines with a new Listen + Read result?`)) return
+  const outDir = await window.api.openDir({ title: 'Save the SRT files to…' })
+  if (!outDir) return
+
+  const listen = async () => {
+    try {
+      return await transcribeJob(e, 'whisper')
+    } catch (err) {
+      const alt = p.settings.sttEngine === 'whisper' || p.settings.sttEngine === 'offline' ? 'gemini-cast' : p.settings.sttEngine
+      toast.warning(`Whisper unavailable (${(err as Error).message}) — listening with Gemini instead`)
+      return transcribeJob(e, alt)
+    }
+  }
+  const read = ocrJob(e).catch((err) => {
+    if ((err as Error).message !== 'Canceled') toast.warning(`Couldn't read the screen (${(err as Error).message}) — using speech only`)
+    return { segments: [] as RawSeg[] }
+  })
+  const [heard, seen] = await Promise.all([listen(), read])
+
+  const m = mergeListenRead(heard.segments, seen.segments, S().ocrInterval)
+  if (!m.lines.length) throw new Error('No speech or subtitles found in this video')
+  const segs = m.lines.map((l) => newSegment(l.start, l.end, l.original, l.target))
+  updateEpisode(e.id, (x) => ({ ...x, segments: segs, status: m.screenIsTarget ? 'translated' : 'transcribed' }))
+  if (heard.language && p.settings.sourceLang === 'auto') mutate((pp) => ({ ...pp, settings: { ...pp.settings, sourceLang: heard.language! } }), { undo: false })
+  toast.success(
+    m.usedScreen
+      ? `Listen + Read: ${segs.length} lines (${Math.round(m.coverage * 100)}% of speech had on-screen subtitles)`
+      : `No burned-in subtitles found — ${segs.length} lines from speech`
+  )
+
+  // translate what isn't translated yet; still save the original SRT if translation fails
+  let trErr: unknown
+  if (segs.some((s) => !s.textTarget.trim())) await translate(e.id).catch((err) => (trErr = err))
+
+  const done = ep(e.id)
+  const map = (cues: Cue[]) => (done.edit.enabled ? mapCuesToOutput(cues, effectiveClips(done.edit)) : cues)
+  const base = safeName(`${p.name.trim().slice(0, 60).trim()}_${done.label}`)
+  const src = P().project!.settings.sourceLang
+  const tgt = P().project!.settings.targetLang
+  const files: string[] = []
+  const save = async (name: string, cues: Cue[]) => {
+    if (!cues.length) return
+    const path = `${outDir}\\${name}`
+    await post('/subs/export', { path, cues: map(cues), format: 'srt' })
+    files.push(path)
+  }
+  const orig = sortSegments(done.segments).map((s) => ({ start: s.start, end: s.end, text: s.textOriginal.trim() })).filter((c) => c.text)
+  const trans = sortSegments(done.segments).map((s) => ({ start: s.start, end: s.end, text: s.textTarget.trim() })).filter((c) => c.text)
+  await save(`${base}_${src && src !== 'auto' ? src : 'original'}.srt`, orig)
+  await save(`${base}_${tgt}.srt`, trans)
+  if (trErr) notify(trErr)
+  if (files.length) {
+    toast.success(`Saved ${files.length} SRT file${files.length > 1 ? 's' : ''}`, {
+      duration: 10000,
+      action: { label: 'Show', onClick: () => window.api.showInFolder(files[files.length - 1]) }
+    })
+  }
+  return files
 }
 
 // ───────── cast ─────────

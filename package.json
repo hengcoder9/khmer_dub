@@ -1,7 +1,7 @@
 {
   "name": "khmerdub-studio",
   "productName": "KhmerDub Studio",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "AI video dubbing studio (Khmer and more)",
   "private": true,
   "main": "./out/main/index.js",
@@ -23,7 +23,8 @@
     "@fastify/cors": "^10.0.1",
     "@fastify/websocket": "^11.3.7",
     "electron-updater": "^6.8.11",
-    "fastify": "^5.1.0"
+    "fastify": "^5.1.0",
+    "mysql2": "^3.24.6"
   },
   "devDependencies": {
     "@radix-ui/react-dialog": "^1.1.2",
