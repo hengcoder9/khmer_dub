@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox, Select } from '@/components/ui/controls'
 import { mutate, setEpisodeVideo, useProject, setActiveEpisode } from '@/store/project'
 import { cancelJob, useJobs } from '@/store/jobs'
+import { useSettings } from '@/store/settings'
 import { post } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import {
@@ -180,7 +181,8 @@ export function AutomateDialog({ onClose }: { onClose: () => void }) {
                   applyEdit: preset.applyEdit,
                   remix: true,
                   originalAudio: false,
-                  cpu: false
+                  cpu: false,
+                  resolution: useSettings.getState().exportResolution
                 },
                 e.id
               )

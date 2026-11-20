@@ -18,6 +18,16 @@ export function VideoPlayer() {
   const captions = useProject((s) => s.project?.settings.captions)
   const targetLang = useProject((s) => s.project?.settings.targetLang ?? 'km')
   const muteOrig = useProject((s) => s.project?.settings.muteOriginal ?? false)
+  const wm = useProject((s) => s.project?.settings.watermark)
+  const [wmUrl, setWmUrl] = useState<string | null>(null)
+  useEffect(() => {
+    let alive = true
+    if (wm?.path) void mediaUrl(wm.path).then((u) => alive && setWmUrl(u))
+    else setWmUrl(null)
+    return () => {
+      alive = false
+    }
+  }, [wm?.path])
   const { volume, setVolume, showSubtitles, set: setSettings } = useSettings()
   const previewEdit = useUi((s) => s.previewEdit)
   const setUi = useUi((s) => s.set)
@@ -385,6 +395,23 @@ export function VideoPlayer() {
               onLoadedMetadata={(e) => Number.isFinite(e.currentTarget.duration) && setDuration(e.currentTarget.duration)}
               onError={() => setUnsupported(true)}
             />
+            {wm && wmUrl && (
+              <img
+                src={wmUrl}
+                draggable={false}
+                className="pointer-events-none absolute"
+                style={{
+                  width: `${wm.size * 100}%`,
+                  opacity: wm.opacity,
+                  ...(wm.position === 'center'
+                    ? { left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }
+                    : {
+                        [wm.position[0] === 't' ? 'top' : 'bottom']: `${wm.margin * 100}%`,
+                        [wm.position[1] === 'l' ? 'left' : 'right']: `${wm.margin * 100}%`
+                      })
+                }}
+              />
+            )}
             {dip > 0 && <div className="pointer-events-none absolute inset-0 bg-black" style={{ opacity: dip }} />}
             {cue && captions && (
               <CaptionPreview style={captions} text={cue.text} start={cue.start} end={cue.end} time={time} height={boxH} lang={captions.source === 'target' ? targetLang : 'en'} />

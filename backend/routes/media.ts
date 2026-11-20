@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify'
 import { createReadStream } from 'node:fs'
-import { stat } from 'node:fs/promises'
-import { extname, resolve } from 'node:path'
+import { readdir, stat } from 'node:fs/promises'
+import { extname, join, resolve } from 'node:path'
+import { isVideoName } from '../pipeline/download'
 import { probeMedia } from '../lib/ffmpeg'
 import { allowFile, isAllowed } from '../lib/allow'
 import { getPeaks, getThumb } from '../lib/peaks'
@@ -37,6 +38,16 @@ async function checkFile(p: string | undefined): Promise<{ abs: string; size: nu
 }
 
 export async function mediaRoutes(app: FastifyInstance) {
+  /** Video files in a folder the user picked, in natural order (EP2 before EP10). */
+  app.post<{ Body: { dir?: string } }>('/media/scan-dir', async (req, reply) => {
+    const dir = req.body?.dir
+    if (!dir) return reply.code(400).send({ error: 'dir required' })
+    const abs = resolve(dir)
+    const names = (await readdir(abs, { withFileTypes: true })).filter((d) => d.isFile() && isVideoName(d.name)).map((d) => d.name)
+    names.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
+    return { files: names.map((n) => join(abs, n)) }
+  })
+
   /** Probe a file the user picked and allow it to be streamed. */
   app.post<{ Body: { path?: string } }>('/media/probe', async (req, reply) => {
     const p = req.body?.path

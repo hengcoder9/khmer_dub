@@ -11,6 +11,7 @@ import { mix, type MixPayload } from './pipeline/mix'
 import { exportEpisode, type ExportPayload } from './pipeline/export'
 import { readScreen, type OcrPayload } from './pipeline/ocr'
 import { installEngines } from './pipeline/pysetup'
+import { download, type DownloadPayload } from './pipeline/download'
 import { getPeaks } from './lib/peaks'
 
 export function registerAllJobs() {
@@ -34,6 +35,7 @@ export function registerAllJobs() {
   registerJob<TtsPayload>('tts', { lane: 'gpu', label: (p) => `Generate ${p.items.length} voice lines`, run: tts })
   registerJob<MixPayload>('mix', { lane: 'cpu', label: () => 'Mix dub track', run: mix })
   registerJob<ExportPayload>('export', { lane: 'cpu', label: (p) => `Export ${p.baseName}`, run: exportEpisode })
+  registerJob<DownloadPayload>('download', { lane: 'net', label: () => 'Download video from link', run: download })
   registerJob<OcrPayload>('ocr', { lane: 'net', label: () => 'Read screen subtitles', run: readScreen })
   registerJob<{ groups: string[]; force?: boolean }>('engines.install', {
     lane: 'cpu',

@@ -113,3 +113,15 @@ describe('auto original sound', () => {
     expect(dubOnAt(sp, 13)).toBe(0)
   })
 })
+
+describe('export resolution', () => {
+  it('scales by the short side, any format', async () => {
+    const { outputSize } = await import('../shared/ranges')
+    expect(outputSize('source', 1920, 1080)).toEqual({ w: 1920, h: 1080 })
+    expect(outputSize('source', 1920, 1080, 720)).toEqual({ w: 1280, h: 720 })
+    expect(outputSize('source', 1920, 1080, 2160)).toEqual({ w: 3840, h: 2160 })
+    expect(outputSize('9:16', 1920, 1080, 1080)).toEqual({ w: 1080, h: 1920 })
+    expect(outputSize('9:16', 1920, 1080, 1440)).toEqual({ w: 1440, h: 2560 })
+    expect(outputSize('1:1', 1920, 1080)).toEqual({ w: 1080, h: 1080 })
+  })
+})

@@ -1,8 +1,8 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Aspect, CaptionStyle, Clip } from '../../shared/types'
+import type { Aspect, CaptionStyle, Clip, Watermark } from '../../shared/types'
 import { serializeSrt, serializeVtt, type Cue } from '../../shared/srt'
-import { clipSpeed, layoutClips, mapCuesToOutput, outputDuration, transitionDur } from '../../shared/ranges'
+import { clipSpeed, layoutClips, mapCuesToOutput, outputDuration, outputSize, transitionDur } from '../../shared/ranges'
 import { toAss } from '../../shared/captions'
 import { runFfmpeg, probeMedia } from '../lib/ffmpeg'
 import { detectEncoder } from '../lib/checks'
@@ -31,6 +31,17 @@ export interface ExportPayload {
   fps?: number
   /** "Mute Original": without a dub mix the video is exported silent instead of with the original audio */
   muteOriginal?: boolean
+  /** short side of the output in px (720/1080/1440/2160); missing = keep the source size */
+  resolution?: number
+  /** project "Source & licence" note, written as SOURCE.txt next to the export */
+  sourceNote?: string
+  /** logo image overlaid on the video */
+  watermark?: Watermark
+}
+
+/** ffmpeg overlay position for a watermark corner (m = margin in px). */
+export function wmPosition(pos: Watermark['position'], m: number): string {
+  return { tl: `${m}:${m}`, tr: `W-w-${m}:${m}`, bl: `${m}:H-h-${m}`, br: `W-w-${m}:H-h-${m}`, center: '(W-w)/2:(H-h)/2' }[pos]
 }
 
 /** atempo only takes 0.5..2 per instance, so chain it for 0.25x / 4x */
@@ -97,14 +108,8 @@ export function clipGraph(clips: Clip[], hasAudio: boolean, fps: number): string
   return g
 }
 
+export { outputSize }
 const even = (n: number) => Math.max(2, Math.round(n / 2) * 2)
-
-export function outputSize(aspect: Aspect, w: number, h: number): { w: number; h: number } {
-  if (aspect === 'source' || !w || !h) return { w: even(w || 1280), h: even(h || 720) }
-  const short = Math.min(1080, Math.max(720, Math.min(w, h)))
-  const [aw, ah] = aspect.split(':').map(Number)
-  return aw >= ah ? { w: even((short * aw) / ah), h: even(short) } : { w: even(short), h: even((short * ah) / aw) }
-}
 
 async function encoderArgs(pref: 'auto' | 'cpu' = 'auto'): Promise<string[]> {
   const enc = pref === 'cpu' ? 'libx264' : (await detectEncoder()).encoder
@@ -123,11 +128,12 @@ async function encoderArgs(pref: 'auto' | 'cpu' = 'auto'): Promise<string[]> {
 export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ files: string[] }> {
   mkdirSync(p.outDir, { recursive: true })
   const files: string[] = []
+  if (p.sourceNote) writeFileSync(join(p.outDir, 'SOURCE.txt'), p.sourceNote, 'utf8')
   const editOn = !!p.edit && (p.edit.clips.length > 0 || p.edit.aspect !== 'source' || p.edit.fadeIn > 0 || p.edit.fadeOut > 0)
   const clips: Clip[] = editOn && p.edit!.clips.length ? p.edit!.clips : [{ id: 'all', start: 0, end: p.durationSec }]
   const outDur = Math.max(0.01, editOn ? outputDuration(clips) : p.durationSec)
   const cues = editOn ? mapCuesToOutput(p.cues, clips) : p.cues
-  const size = outputSize(editOn ? p.edit!.aspect : 'source', p.width, p.height)
+  const size = outputSize(editOn ? p.edit!.aspect : 'source', p.width, p.height, p.resolution)
   // Windows MAX_PATH is 260; leave room for the longest suffix we write ("_instrumental.wav").
   const room = 259 - join(p.outDir, '_instrumental.wav').length
   if (room < 8) throw new Error(`Export folder path is too long for Windows (${p.outDir.length} chars). Choose a shorter folder.`)
@@ -161,7 +167,10 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
   }
 
   const out = `${base}.mp4`
-  let reencode = editOn || p.burn
+  // a different resolution needs a re-encode (stream copy keeps the source size)
+  const resized = size.w !== even(p.width || 1280) || size.h !== even(p.height || 720)
+  const wm = p.watermark && existsSync(p.watermark.path) ? p.watermark : null
+  let reencode = editOn || p.burn || resized || !!wm
 
   if (!reencode) {
     ctx.progress(2, 'Muxing (video copy)')
@@ -221,7 +230,7 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
   } else if (reframe) {
     g.push(`[vcat]scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h}[vr]`)
   } else {
-    g.push(`[vcat]scale=${w}:${h}[vr]`)
+    g.push(`[vcat]scale=${w}:${h}:flags=lanczos[vr]`)
   }
 
   const vf: string[] = ['setsar=1']
@@ -232,7 +241,16 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
   if (fo > 0) vf.push(`fade=t=out:st=${Math.max(0, outDur - fo).toFixed(3)}:d=${fo}`), af.push(`afade=t=out:st=${Math.max(0, outDur - fo).toFixed(3)}:d=${fo}`)
   if (p.burn) vf.push('subtitles=subs.ass:fontsdir=fonts')
   vf.push('format=yuv420p')
-  g.push(`[vr]${vf.join(',')}[vout]`)
+  let vIn = 'vr'
+  if (wm) {
+    // logo: scaled to a share of the frame width, faded to its opacity, kept on screen for the whole video
+    const wi = hasAudio ? 2 : 1
+    const m = Math.round(Math.min(w, h) * Math.max(0, wm.margin))
+    g.push(`[${wi}:v]format=rgba,scale=${even(w * Math.min(0.9, Math.max(0.02, wm.size)))}:-1,colorchannelmixer=aa=${Math.min(1, Math.max(0, wm.opacity)).toFixed(3)}[wm]`)
+    g.push(`[vr][wm]overlay=${wmPosition(wm.position, m)}:format=auto[vw]`)
+    vIn = 'vw'
+  }
+  g.push(`[${vIn}]${vf.join(',')}[vout]`)
   g.push(`[acat]${af.length ? af.join(',') : 'anull'}[aout]`)
   writeFileSync(join(work, 'graph.txt'), g.join(';\n'), 'utf8')
 
@@ -240,6 +258,7 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
   ctx.progress(1, `Rendering ${n} clip${n === 1 ? '' : 's'} (${enc[1]})`)
   const inArgs = ['-y', '-i', p.videoPath]
   if (hasAudio) inArgs.push('-i', audioIn)
+  if (wm) inArgs.push('-i', wm.path)
   const build = (e: string[]) => [
     ...inArgs,
     '-/filter_complex', 'graph.txt',

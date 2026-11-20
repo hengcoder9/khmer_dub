@@ -243,6 +243,26 @@ export interface ProjectSettings {
   whisperModel: string
   captions: CaptionStyle
   burnSubtitles: boolean
+  /** your logo / channel badge on exported videos */
+  watermark?: Watermark
+}
+
+export interface Watermark {
+  path: string
+  position: 'tl' | 'tr' | 'bl' | 'br' | 'center'
+  /** width as a fraction of the video width */
+  size: number
+  /** 0..1 */
+  opacity: number
+  /** distance from the edge, fraction of the shorter side */
+  margin: number
+}
+
+/** Where the episodes come from and the permission to dub them. */
+export interface ProjectSource {
+  origin: string
+  licence: string
+  notes?: string
 }
 
 export interface Project {
@@ -253,6 +273,7 @@ export interface Project {
   glossary: { source: string; target: string }[]
   cast: Actor[]
   settings: ProjectSettings
+  source?: ProjectSource
 }
 
 // ───────────────────────── voices ─────────────────────────

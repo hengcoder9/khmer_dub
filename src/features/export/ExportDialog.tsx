@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next'
 import { CheckCircle2, FolderOpen, Loader2, Play } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Checkbox, Field, Input, Progress } from '@/components/ui/controls'
+import { Checkbox, Field, Input, Progress, Select } from '@/components/ui/controls'
+import { useSettings } from '@/store/settings'
+import { outputSize, RESOLUTIONS } from '@shared/ranges'
 import { useActiveEpisode, useProject, projectsRoot } from '@/store/project'
 import { useJobs } from '@/store/jobs'
 import { editedDuration, exportEpisode, notify, type ExportOptions } from '@/lib/pipeline'
@@ -14,6 +16,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
   const ep = useActiveEpisode()
   const dir = useProject((s) => s.dir)
   const burnDefault = useProject((s) => s.project?.settings.burnSubtitles ?? false)
+  const source = useProject((s) => s.project?.source)
   const jobs = useJobs((s) => s.jobs)
   const [busy, setBusy] = useState(false)
   const [files, setFiles] = useState<string[] | null>(null)
@@ -29,7 +32,8 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
     applyEdit: true,
     remix: true,
     originalAudio: false,
-    cpu: false
+    cpu: false,
+    resolution: useSettings.getState().exportResolution
   })
   useEffect(() => {
     if (ep) {
@@ -79,6 +83,11 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
               ? t('export.voiceTrack', 'The imported AI voice track will be mixed over the background.')
               : t('export.noVoices', 'No dub voices yet — the original audio will be used.')}{' '}
           {ep.edit.enabled && o.applyEdit && t('export.edited', 'Edited length: {{d}}', { d: formatTime(editedDuration(ep)).slice(0, 8) })}
+          <span className="mt-1 block text-xs">
+            {source
+              ? `${t('export.source', 'Source')}: ${source.origin}${source.licence ? ` · ${source.licence}` : ''} — ${t('export.sourceSaved', 'saved as SOURCE.txt')}`
+              : t('export.noSource', 'No source / licence noted for this project (Tools → Source & licence).')}
+          </span>
         </DialogDescription>
 
         <div className="flex flex-col gap-4">
@@ -96,6 +105,26 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
                 <FolderOpen />
               </Button>
             </div>
+          </Field>
+          <Field label={t('export.resolution', 'Resolution')}>
+            <Select
+              className="w-full"
+              disabled={!o.mp4}
+              value={String(o.resolution ?? 0)}
+              onChange={(v) => {
+                set({ resolution: Number(v) })
+                useSettings.getState().set({ exportResolution: Number(v) })
+              }}
+              options={RESOLUTIONS.map((r) => {
+                const vw = ep.media?.video?.width ?? 0
+                const vh = ep.media?.video?.height ?? 0
+                const aspect = ep.edit.enabled && o.applyEdit ? ep.edit.aspect : 'source'
+                const sz = outputSize(aspect, vw, vh, r || undefined)
+                const name = r === 0 ? t('export.resOriginal', 'Original') : r === 2160 ? '2160p (4K)' : `${r}p`
+                const up = r > 0 && vw && vh && r > Math.min(vw, vh) ? ` — ${t('export.upscale', 'upscaled')}` : ''
+                return { value: String(r), label: `${name}  ·  ${sz.w}×${sz.h}${up}` }
+              })}
+            />
           </Field>
           <div className="grid grid-cols-2 gap-x-6 gap-y-2">
             <Checkbox checked={o.mp4} onChange={(v) => set({ mp4: v })} label={t('export.mp4', 'Dubbed MP4 video')} />

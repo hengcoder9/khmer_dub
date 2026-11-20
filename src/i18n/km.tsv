@@ -465,3 +465,38 @@ player.full	ពេញអេក្រង់ (F ឬចុចពីរដងលើ�
 player.exitFull	ចេញពីពេញអេក្រង់ (Esc)
 ar.autoOrig	សំឡេងដើមស្វ័យប្រវត្តិ
 ar.autoOrigHint	ស្វ័យប្រវត្តិ៖ បិទសំឡេងដើមពេលសំឡេងបញ្ចូល (A1) និយាយ ហើយបើកវិញនៅកន្លែងគ្មានសំឡេងបញ្ចូល
+export.resolution	កម្រិតភាពច្បាស់
+export.resOriginal	ដើម
+export.upscale	ពង្រីក
+tools.importFolder	នាំចូលថត
+tools.importLink	នាំចូលតំណ
+tools.source	ប្រភព និងអាជ្ញាប័ណ្ណ
+link.title	នាំចូលពីតំណ
+link.desc	វីដេអូដែលអ្នកជាម្ចាស់ ឬមានអាជ្ញាប័ណ្ណបញ្ចូលសំឡេង៖ តំណផ្ទាល់ទៅឯកសារវីដេអូ ឬតំណចែករំលែក Google Drive / Dropbox។ សេវាស្ទ្រីម និង VIP (iQIYI, WeTV, Tencent, Hongguo, DramaBox, GoodShort…) មិនគាំទ្រទេ។
+link.url	តំណ
+link.download	ទាញយក និងបន្ថែមភាគ
+source.title	ប្រភព និងអាជ្ញាប័ណ្ណ
+source.desc	រក្សាកំណត់ត្រាថាភាគទាំងនេះមកពីណា និងការអនុញ្ញាតឱ្យបញ្ចូលសំឡេង។ រក្សាទុកជា SOURCE.txt ជាមួយការនាំចេញនីមួយៗ។
+source.origin	ប្រភព
+source.originPh	ឧ. អ្នកចែកចាយ / ម្ចាស់សិទ្ធិ ចំណងជើងដើម
+source.licence	អាជ្ញាប័ណ្ណ / ការអនុញ្ញាត
+source.licencePh	ឧ. អាជ្ញាប័ណ្ណបញ្ចូលសំឡេងខ្មែរ #123 មានសុពលភាពដល់ 2027-12-31
+source.notes	កំណត់ចំណាំ
+export.source	ប្រភព
+export.sourceSaved	រក្សាទុកជា SOURCE.txt
+export.noSource	គម្រោងនេះមិនទាន់កត់ត្រាប្រភព / អាជ្ញាប័ណ្ណ (ឧបករណ៍ → ប្រភព និងអាជ្ញាប័ណ្ណ)។
+tools.watermark	ស្លាកសញ្ញា
+wm.title	ស្លាកសញ្ញា (Watermark)
+wm.desc	ឡូហ្គោ ឬស្លាកឆានែលរបស់អ្នក នៅលើវីដេអូនាំចេញទាំងអស់។ PNG ផ្ទៃថ្លាល្អបំផុត។
+wm.choose	ជ្រើសរូបភាព
+wm.change	ប្ដូររូបភាព
+wm.remove	លុបស្លាកសញ្ញា
+wm.position	ទីតាំង
+wm.tl	ខាងលើឆ្វេង
+wm.tr	ខាងលើស្ដាំ
+wm.bl	ខាងក្រោមឆ្វេង
+wm.br	ខាងក្រោមស្ដាំ
+wm.center	កណ្ដាល
+wm.size	ទំហំ
+wm.opacity	ភាពស្រអាប់
+wm.margin	គម្លាតពីគែម

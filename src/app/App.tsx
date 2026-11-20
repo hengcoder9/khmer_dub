@@ -13,6 +13,8 @@ import { ExportDialog } from '@/features/export/ExportDialog'
 import { AutomateDialog } from '@/features/automate/AutomateDialog'
 import { NewProjectDialog } from '@/features/project/NewProjectDialog'
 import { UpdateModal } from '@/features/update/UpdateModal'
+import { LinkDialog, SourceDialog } from '@/features/project/ImportTools'
+import { WatermarkDialog } from '@/features/project/WatermarkDialog'
 
 function useApplyTheme() {
   const theme = useSettings((s) => s.theme)
@@ -87,6 +89,9 @@ export function App() {
       {dialog === 'export' && <ExportDialog onClose={() => setUi({ dialog: null })} />}
       {dialog === 'automate' && <AutomateDialog onClose={() => setUi({ dialog: null })} />}
       {dialog === 'newProject' && <NewProjectDialog onClose={() => setUi({ dialog: null })} />}
+      {dialog === 'link' && <LinkDialog onClose={() => setUi({ dialog: null })} />}
+      {dialog === 'source' && <SourceDialog onClose={() => setUi({ dialog: null })} />}
+      {dialog === 'watermark' && <WatermarkDialog onClose={() => setUi({ dialog: null })} />}
       <UpdateModal />
       <Toaster theme={dark ? 'dark' : 'light'} position="bottom-right" richColors closeButton />
     </>

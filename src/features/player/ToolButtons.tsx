@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { AudioWaveform, Bot, Captions, FileDown, FileUp, Loader2, Music, Video, VolumeX, Wand2, type LucideIcon } from 'lucide-react'
+import { AudioWaveform, Bot, Captions, FileDown, FileUp, FolderInput, Link, Loader2, Music, ShieldCheck, Stamp, Video, VolumeX, Wand2, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { mutate, useActiveEpisode, useProject } from '@/store/project'
 import { useUi } from '@/store/ui'
-import { importBgm, saveSrtFiles, importSubtitles, importVideo, importVoiceTrack, notify, separateVocals } from '@/lib/pipeline'
+import { importBgm, importFolder, saveSrtFiles, importSubtitles, importVideo, importVoiceTrack, notify, separateVocals } from '@/lib/pipeline'
 import { DropdownContent, DropdownMenu, DropdownTrigger } from '@/components/ui/controls'
 import { useSettings } from '@/store/settings'
 
@@ -24,6 +24,8 @@ export function ToolButtons() {
   const ep = useActiveEpisode()
   const muteOriginal = useProject((s) => s.project?.settings.muteOriginal ?? false)
   const burn = useProject((s) => s.project?.settings.burnSubtitles ?? false)
+  const hasSource = useProject((s) => !!s.project?.source)
+  const hasWm = useProject((s) => !!s.project?.settings.watermark)
   const setUi = useUi((s) => s.set)
   const [busy, setBusy] = useState<string | null>(null)
 
@@ -80,7 +82,11 @@ export function ToolButtons() {
         )
       }
     },
-    { key: 'automate', icon: Bot, label: t('tools.automate', 'Automate'), run: () => setUi({ dialog: 'automate' }) }
+    { key: 'automate', icon: Bot, label: t('tools.automate', 'Automate'), run: () => setUi({ dialog: 'automate' }) },
+    { key: 'importFolder', icon: FolderInput, label: t('tools.importFolder', 'Import Folder'), run: () => importFolder() },
+    { key: 'importLink', icon: Link, label: t('tools.importLink', 'Import Link'), run: () => setUi({ dialog: 'link' }) },
+    { key: 'watermark', icon: Stamp, label: t('tools.watermark', 'Watermark'), active: hasWm, run: () => setUi({ dialog: 'watermark' }) },
+    { key: 'source', icon: ShieldCheck, label: t('tools.source', 'Source & licence'), active: hasSource, run: () => setUi({ dialog: 'source' }) }
   ]
 
   const cls = (active?: boolean) =>

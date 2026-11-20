@@ -1,7 +1,7 @@
 // Edit-list math for the AI video editor (pure, unit tested).
 // Source time = position in the original video. Output time = position in the edited export.
 
-import type { Clip, EditState, Range } from './types'
+import type { Aspect, Clip, EditState, Range } from './types'
 import type { Cue } from './srt'
 
 export const MIN_CLIP = 0.08
@@ -277,4 +277,23 @@ export function dubOnAt(spans: Range[], t: number, fade = AUTO_FADE): number {
     if (t <= r.end + fade) k += c((t - (r.start - fade)) / fade) * c((r.end + fade - t) / fade)
   }
   return Math.min(1, k)
+}
+
+// ───────── export size ─────────
+
+/** Export resolutions by their short side ("1080p" = 1920×1080 landscape, 1080×1920 vertical). 0 = keep the source. */
+export const RESOLUTIONS = [0, 720, 1080, 1440, 2160] as const
+
+const even = (n: number) => Math.max(2, Math.round(n / 2) * 2)
+
+/** Pixel size of the export for a format (aspect) and an optional resolution (short side in px). */
+export function outputSize(aspect: Aspect, w: number, h: number, res?: number): { w: number; h: number } {
+  if (aspect === 'source' || !w || !h) {
+    if (!res || !w || !h) return { w: even(w || 1280), h: even(h || 720) }
+    const k = res / Math.min(w, h)
+    return { w: even(w * k), h: even(h * k) }
+  }
+  const short = res || Math.min(1080, Math.max(720, Math.min(w, h)))
+  const [aw, ah] = aspect.split(':').map(Number)
+  return aw >= ah ? { w: even((short * aw) / ah), h: even(short) } : { w: even(short), h: even((short * ah) / aw) }
 }

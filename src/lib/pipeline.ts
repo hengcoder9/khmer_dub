@@ -5,7 +5,7 @@ import type { Actor, Episode, MediaInfo, Segment, SttEngine, Translator, Voice }
 import type { RawSeg } from '@shared/segments'
 import type { TResult } from '@shared/translate'
 import { actorStats, autoMatchVoices, matchSpeakers, tidyCast } from '@shared/cast'
-import { newSegment, uid } from '@shared/defaults'
+import { episodeLabel, newEpisode, newSegment, uid } from '@shared/defaults'
 import { dubSpans, effectiveClips, mapCuesToOutput, outputDuration } from '@shared/ranges'
 import { mergeListenRead } from '@shared/screenmerge'
 import type { Cue } from '@shared/srt'
@@ -72,6 +72,59 @@ Cancel = keep the old lines`)) {
     void remakeLines(e.id)
   } else autoLines([e.id])
   return info
+}
+
+/** Put videos into episodes in order: empty episodes first, then new E02, E03… Returns the episode ids. */
+export async function addEpisodeVideos(paths: string[]): Promise<string[]> {
+  const ids: string[] = []
+  for (const path of paths) {
+    const info = await post<MediaInfo>('/media/probe', { path })
+    const p = P().project!
+    let id = p.episodes.find((e) => !e.videoPath && !ids.includes(e.id))?.id
+    if (!id) {
+      const used = new Set(p.episodes.map((e) => e.label))
+      let n = p.episodes.length + 1
+      while (used.has(episodeLabel(n))) n++
+      const e = newEpisode(n)
+      mutate((pp) => ({ ...pp, episodes: [...pp.episodes, e] }), { undo: false })
+      id = e.id
+    }
+    setEpisodeVideo(id, info)
+    info.warnings.forEach((w) => toast.warning(`${info.name}: ${w}`))
+    ids.push(id)
+  }
+  return ids
+}
+
+/** Import Folder: every video in a folder becomes an episode (natural order), then lines start automatically. */
+export async function importFolder() {
+  const dir = await window.api.openDir({ title: 'Folder with the episode videos' })
+  if (!dir) return
+  const { files } = await post<{ files: string[] }>('/media/scan-dir', { dir })
+  if (!files.length) throw new Error('No video files (.mp4 .mkv .mov .webm .m4v .avi) in that folder')
+  toast.info(`Importing ${files.length} episode${files.length > 1 ? 's' : ''}…`)
+  const ids = await addEpisodeVideos(files)
+  toast.success(`Imported ${ids.length} episode${ids.length > 1 ? 's' : ''}: ${ids.map((id) => P().project!.episodes.find((e) => e.id === id)?.label).join(', ')}`)
+  autoLines(ids)
+}
+
+/** Import Link: download a video you own / are licensed to dub into the project, as a new episode. */
+export async function importLink(url: string) {
+  const r = await runJob<{ path: string }>('download', { url, outDir: `${P().dir}\\downloads` })
+  const ids = await addEpisodeVideos([r.path])
+  toast.success(`Downloaded and added as ${P().project!.episodes.find((e) => e.id === ids[0])?.label}`)
+  autoLines(ids)
+  return r.path
+}
+
+/** The project's Source & licence note as plain text (SOURCE.txt). */
+export function sourceNote(): string | undefined {
+  const p = P().project
+  const s = p?.source
+  if (!s) return undefined
+  return [`Project: ${p!.name}`, `Source: ${s.origin}`, `Licence / permission: ${s.licence}`, s.notes ? `Notes: ${s.notes}` : '', `Exported: ${new Date().toISOString()}`]
+    .filter(Boolean)
+    .join('\r\n')
 }
 
 /** Lines that start after the end of the episode's video: they came from a different (longer) video. */
@@ -503,6 +556,8 @@ export interface ExportOptions {
   remix: boolean
   originalAudio: boolean
   cpu: boolean
+  /** short side in px; 0/undefined = original size */
+  resolution?: number
 }
 
 export async function exportEpisode(opts: ExportOptions, epId?: string) {
@@ -561,7 +616,10 @@ export async function exportEpisode(opts: ExportOptions, epId?: string) {
       },
       encoder: opts.cpu ? 'cpu' : 'auto',
       fps: e.media?.video?.fps,
-      muteOriginal: p.settings.muteOriginal && !opts.originalAudio
+      muteOriginal: p.settings.muteOriginal && !opts.originalAudio,
+      resolution: opts.resolution || undefined,
+      sourceNote: sourceNote(),
+      watermark: p.settings.watermark
     },
     e.id
   )
