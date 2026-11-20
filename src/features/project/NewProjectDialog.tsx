@@ -8,7 +8,7 @@ import { Field, Input, Select } from '@/components/ui/controls'
 import { createProject, projectsRoot, mutate, useProject, setEpisodeVideo } from '@/store/project'
 import { useSettings } from '@/store/settings'
 import { post } from '@/lib/api'
-import { VIDEO_FILTERS } from '@/lib/pipeline'
+import { autoLines, VIDEO_FILTERS } from '@/lib/pipeline'
 import { LANG_NAMES } from '@shared/translate'
 import { episodeLabel, newEpisode } from '@shared/defaults'
 import type { MediaInfo } from '@shared/types'
@@ -54,6 +54,7 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
       }
       useProject.setState({ past: [], future: [] })
       onClose()
+      autoLines(useProject.getState().project!.episodes.map((e) => e.id))
     } catch (e) {
       toast.error((e as Error).message)
     } finally {

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Captions, Film, Pause, Play, Scissors, Square, Volume2, VolumeX } from 'lucide-react'
+import { AudioLines, Captions, Columns2, Film, Maximize, Minimize, Pause, Play, Scissors, Square, Volume2, VolumeX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useActiveEpisode, useProject } from '@/store/project'
 import { useSettings } from '@/store/settings'
 import { registerPlayer, useUi } from '@/store/ui'
 import { mediaUrl } from '@/lib/api'
 import { cn, formatTime, isTyping } from '@/lib/utils'
-import { effectiveClips } from '@shared/ranges'
+import { clipSpeed, dubOnAt, dubSpans, effectiveClips, outputDuration, outputToSource, sourceToOutput, transitionDur } from '@shared/ranges'
 import { CaptionPreview } from './CaptionPreview'
 
 const ASPECT: Record<string, number> = { '16:9': 16 / 9, '9:16': 9 / 16, '1:1': 1, '4:5': 4 / 5 }
@@ -17,12 +17,36 @@ export function VideoPlayer() {
   const ep = useActiveEpisode()
   const captions = useProject((s) => s.project?.settings.captions)
   const targetLang = useProject((s) => s.project?.settings.targetLang ?? 'km')
+  const muteOrig = useProject((s) => s.project?.settings.muteOriginal ?? false)
   const { volume, setVolume, showSubtitles, set: setSettings } = useSettings()
   const previewEdit = useUi((s) => s.previewEdit)
   const setUi = useUi((s) => s.set)
   const ref = useRef<HTMLVideoElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
   const boxRef = useRef<HTMLDivElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [full, setFull] = useState(false)
+  const bigPlayer = useSettings((s) => s.bigPlayer)
+  const toggleFull = useCallback(() => {
+    if (document.fullscreenElement) void document.exitFullscreen()
+    else void rootRef.current?.requestFullscreen().catch(() => {})
+  }, [])
+  useEffect(() => {
+    const on = () => setFull(document.fullscreenElement === rootRef.current)
+    document.addEventListener('fullscreenchange', on)
+    return () => document.removeEventListener('fullscreenchange', on)
+  }, [])
+  // F = full screen (Esc leaves it)
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.altKey && !isTyping(e.target) && !document.querySelector('[role="dialog"]')) {
+        e.preventDefault()
+        toggleFull()
+      }
+    }
+    window.addEventListener('keydown', key)
+    return () => window.removeEventListener('keydown', key)
+  }, [toggleFull])
   const rangeEnd = useRef<number | null>(null)
   const [src, setSrc] = useState<string | null>(null)
   const [playing, setPlaying] = useState(false)
@@ -48,13 +72,6 @@ export function VideoPlayer() {
   }, [videoPath])
 
   useEffect(() => {
-    if (ref.current) {
-      ref.current.volume = volume
-      ref.current.muted = muted
-    }
-  }, [volume, muted, src])
-
-  useEffect(() => {
     const el = boxRef.current
     if (!el) return
     const ro = new ResizeObserver(() => setBoxH(el.clientHeight))
@@ -64,6 +81,134 @@ export function VideoPlayer() {
 
   // edited-cut preview: playback order of clips
   const clips = useMemo(() => (ep?.edit.enabled ? effectiveClips(ep.edit) : []), [ep?.edit])
+
+  // per-clip speed / volume / color (applied whenever edits are on, like the export)
+  const curIdx = clips.findIndex((c) => time >= c.start && time < c.end)
+  const cur = curIdx >= 0 ? clips[curIdx] : null
+  const speed = cur ? clipSpeed(cur) : 1
+  const gain = cur?.volume ?? 1
+  useEffect(() => {
+    const v = ref.current
+    if (!v) return
+    v.playbackRate = speed
+    v.volume = Math.min(1, volume * gain)
+  }, [speed, gain, volume, src])
+  const col = cur?.color
+  const cssFilter = col ? `brightness(${(1 + col.brightness).toFixed(2)}) contrast(${col.contrast.toFixed(2)}) saturate(${col.saturation.toFixed(2)})` : undefined
+  // transition preview: a quick dip at the cut (the export renders the real xfade)
+  let dip = 0
+  if (previewEdit && cur) {
+    const d = transitionDur(clips, curIdx)
+    const left = (cur.end - time) / speed
+    if (d > 0 && left < d / 2) dip = Math.max(dip, 1 - left / (d / 2))
+    const dIn = curIdx > 0 ? transitionDur(clips, curIdx - 1) : 0
+    const into = (time - cur.start) / speed
+    if (dIn > 0 && into < dIn / 2) dip = Math.max(dip, 1 - into / (dIn / 2))
+  }
+  // in "Edited" view the seek bar and clock show the finished video's timeline
+  const outMode = previewEdit && clips.length > 0
+  const outDur = outMode ? outputDuration(clips) : duration
+  const outTime = outMode ? (sourceToOutput(time, clips) ?? 0) : time
+
+  // ───────── dub preview: hear the voiced lines (A1), an imported AI voice and the instrumental with the video ─────────
+  const [hearDub, setHearDub] = useState(true)
+  const settings = useProject((s) => s.project?.settings)
+  const dubSegs = useMemo(() => (ep?.segments ?? []).filter((s) => s.audioPath && s.audioDur).sort((a, b) => a.start - b.start), [ep?.segments])
+  const hasDub = dubSegs.length > 0 || !!ep?.voiceTrack
+  // like the mix: under the dub, the instrumental replaces the original audio (unless "keep original voices" is on)
+  const autoOrig = (settings?.autoOriginal ?? true) && !ep?.voiceTrack && dubSegs.length > 0
+  const bgPath = hearDub && hasDub && !muteOrig && !settings?.keepOriginal && !autoOrig ? ep?.stems.instrumental : undefined
+  // auto mode: the instrumental only fills in under the dub lines; the video's own sound plays in the gaps
+  const instAuto = hearDub && autoOrig && !muteOrig && !settings?.keepOriginal ? ep?.stems.instrumental : undefined
+  // the same merged spans and fade curve as the export mix, so preview and export sound alike
+  const spans = useMemo(() => dubSpans(dubSegs.map((s) => ({ start: s.start, dur: s.audioDur! }))), [dubSegs])
+  const urls = useRef(new Map<string, string>())
+  useEffect(() => {
+    const paths = [...dubSegs.map((s) => s.audioPath!), ep?.voiceTrack, ep?.stems.instrumental].filter((p): p is string => !!p)
+    for (const p of paths) if (!urls.current.has(p)) void mediaUrl(p).then((u) => urls.current.set(p, u))
+  }, [dubSegs, ep?.voiceTrack, ep?.stems.instrumental])
+  const dub = useRef<{ id: string; el: HTMLAudioElement } | null>(null)
+  const preload = useRef(new Map<string, HTMLAudioElement>())
+  const tracks = useRef(new Map<string, HTMLAudioElement>())
+  const stopDub = () => {
+    dub.current?.el.pause()
+    dub.current = null
+    tracks.current.forEach((a) => a.pause())
+  }
+  useEffect(() => () => stopDub(), [])
+  // the video's own sound: off when muted, when "Mute Original" is on, or while the instrumental plays instead
+  useEffect(() => {
+    if (ref.current && !ref.current.dataset.dubbing) ref.current.muted = muted || muteOrig || !!bgPath
+  }, [muted, muteOrig, bgPath, src])
+  const live = useRef({ hearDub, dubSegs, volume, gain, settings, voiceTrack: ep?.voiceTrack, bgPath, autoOrig, instAuto, spans })
+  live.current = { hearDub, dubSegs, volume, gain, settings, voiceTrack: ep?.voiceTrack, bgPath, autoOrig, instAuto, spans }
+
+  /** Keep a long source-time audio file playing in step with the video. */
+  const follow = (path: string | undefined, t: number, vol: number, rate: number) => {
+    const u = path && urls.current.get(path)
+    if (!u) return
+    let a = tracks.current.get(u)
+    if (!a) tracks.current.set(u, (a = new Audio(u)))
+    a.volume = Math.max(0, Math.min(1, vol))
+    a.playbackRate = rate
+    if (Math.abs(a.currentTime - t) > 0.25) a.currentTime = t
+    if (a.paused) a.play().catch(() => {})
+  }
+
+  /** Called every frame while playing. */
+  const syncDub = (v: HTMLVideoElement) => {
+    const L = live.current
+    const t = v.currentTime
+    // single-line preview / "play line" use their own audio
+    if (!L.hearDub || v.dataset.dubbing || rangeEnd.current !== null) {
+      stopDub()
+      v.volume = Math.min(1, L.volume * L.gain)
+      return
+    }
+    const gv = L.settings?.globalVolume ?? 1
+    const seg = L.dubSegs.find((s) => t >= s.start && t < s.start + (s.audioDur ?? 0))
+    if (seg?.id !== dub.current?.id) {
+      dub.current?.el.pause()
+      dub.current = null
+      const u = seg && urls.current.get(seg.audioPath!)
+      if (seg && u) {
+        const el = preload.current.get(u) ?? new Audio(u)
+        preload.current.delete(u)
+        el.currentTime = Math.max(0, t - seg.start)
+        el.playbackRate = v.playbackRate
+        el.volume = Math.min(1, L.volume * seg.volume * gv)
+        el.play().catch(() => {})
+        dub.current = { id: seg.id, el }
+      }
+    }
+    // load the next two lines ahead so they start on time instead of after a fetch
+    for (const nx of L.dubSegs.filter((s) => s.start > t).slice(0, 2)) {
+      const nu = urls.current.get(nx.audioPath!)
+      if (nu && !preload.current.has(nu)) {
+        const a = new Audio(nu)
+        a.preload = 'auto'
+        preload.current.set(nu, a)
+        if (preload.current.size > 6) preload.current.delete(preload.current.keys().next().value!)
+      }
+    }
+    follow(L.voiceTrack, t, L.volume * gv, v.playbackRate)
+    if (L.autoOrig) {
+      // Auto original: original sound off while a dub line speaks, back on in the gaps (quick fade, like the export)
+      const k = dubOnAt(L.spans, t)
+      const under = L.settings?.keepOriginal ? (L.settings.origVolume ?? 0.15) : 0
+      v.volume = Math.max(0, Math.min(1, L.volume * L.gain * (1 - (1 - under) * k)))
+      if (L.instAuto) follow(L.instAuto, t, L.volume * L.gain * k, v.playbackRate)
+    } else {
+      // background (instrumental or the original audio), ducked while a dub line speaks — like the export mix
+      const speaking = !!dub.current || !!L.voiceTrack
+      const duck = speaking && L.settings?.ducking ? Math.pow(10, (L.settings.duckLevelDb ?? -12) / 20) : 1
+      if (L.bgPath) follow(L.bgPath, t, L.volume * L.gain * duck, v.playbackRate)
+      else v.volume = Math.min(1, L.volume * L.gain) * duck
+    }
+    // stop tracks that are no longer part of the mix (e.g. the dub toggle or Mute Original changed while playing)
+    const used = new Set([L.voiceTrack, L.bgPath, L.instAuto].filter(Boolean).map((p) => urls.current.get(p!)))
+    tracks.current.forEach((a, u) => !used.has(u) && !a.paused && a.pause())
+  }
 
   // smooth time updates while playing + range stop + edit-cut skipping
   useEffect(() => {
@@ -89,6 +234,7 @@ export function VideoPlayer() {
             else v.pause()
           }
         }
+        if (!v.paused) syncDub(v)
         setTime(v.currentTime)
         setUi({ time: v.currentTime })
       }
@@ -113,7 +259,7 @@ export function VideoPlayer() {
     const a = audioRef.current
     if (a && !a.paused) a.pause()
     if (ref.current && ref.current.dataset.dubbing) {
-      ref.current.muted = muted
+      ref.current.muted = muted || muteOrig || !!bgPath
       delete ref.current.dataset.dubbing
     }
   }
@@ -205,8 +351,8 @@ export function VideoPlayer() {
   const cutHere = ep?.edit.enabled && clips.length > 0 && !clips.some((c) => time >= c.start && time < c.end)
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-lg border bg-black">
-      <div ref={boxRef} className="relative grid aspect-video place-items-center overflow-hidden">
+    <div ref={rootRef} className={cn('flex flex-col overflow-hidden bg-black', full ? 'h-screen w-screen' : 'rounded-lg border')}>
+      <div ref={boxRef} className={cn('relative grid place-items-center overflow-hidden', full ? 'min-h-0 flex-1' : 'aspect-video')}>
         {src && !unsupported ? (
           <div
             className={cn('relative h-full overflow-hidden', aspect && ep?.edit.fitMode !== 'crop' && 'bg-neutral-900')}
@@ -216,23 +362,30 @@ export function VideoPlayer() {
               ref={ref}
               src={src}
               className={cn('size-full', aspect && ep?.edit.fitMode === 'crop' ? 'object-cover' : 'object-contain')}
+              style={{ filter: cssFilter }}
               preload="auto"
               onClick={toggle}
+              onDoubleClick={toggleFull}
               onPlay={() => {
                 setPlaying(true)
                 setUi({ playing: true })
               }}
               onPause={() => {
+                stopDub()
                 setPlaying(false)
                 setUi({ playing: false })
               }}
               onSeeked={(e) => {
+                // restart the dub line at the new position on the next frame
+                dub.current?.el.pause()
+                dub.current = null
                 setTime(e.currentTarget.currentTime)
                 setUi({ time: e.currentTarget.currentTime })
               }}
               onLoadedMetadata={(e) => Number.isFinite(e.currentTarget.duration) && setDuration(e.currentTarget.duration)}
               onError={() => setUnsupported(true)}
             />
+            {dip > 0 && <div className="pointer-events-none absolute inset-0 bg-black" style={{ opacity: dip }} />}
             {cue && captions && (
               <CaptionPreview style={captions} text={cue.text} start={cue.start} end={cue.end} time={time} height={boxH} lang={captions.source === 'target' ? targetLang : 'en'} />
             )}
@@ -257,11 +410,14 @@ export function VideoPlayer() {
         <input
           type="range"
           min={0}
-          max={duration || 0}
+          max={outDur || 0}
           step={0.01}
-          value={Math.min(time, duration)}
+          value={Math.min(outTime, outDur)}
           disabled={!src || unsupported}
-          onChange={(e) => seek(Number(e.target.value))}
+          onChange={(e) => {
+            const v = Number(e.target.value)
+            seek(outMode ? (outputToSource(v, clips) ?? 0) : v)
+          }}
           className="w-full"
           aria-label="Seek"
         />
@@ -283,7 +439,8 @@ export function VideoPlayer() {
             <Square />
           </Button>
           <span className="ml-1 whitespace-nowrap font-mono text-[11px] tabular-nums">
-            {formatTime(time)} <span className="text-muted-foreground">/ {formatTime(duration)}</span>
+            {formatTime(outTime)} <span className="text-muted-foreground">/ {formatTime(outDur)}</span>
+            {speed !== 1 && <span className="ml-1 text-primary">{speed}×</span>}
           </span>
           <div className="flex-1" />
           {ep?.edit.enabled && (
@@ -297,11 +454,25 @@ export function VideoPlayer() {
               <Scissors className="size-3.5" /> {t('player.previewEdit', 'Edited')}
             </Button>
           )}
+          {hasDub && (
+            <Button
+              variant={hearDub ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-7 px-2 text-[11px]"
+              onClick={() => {
+                setHearDub((x) => !x)
+                stopDub()
+              }}
+              title={t('player.dubHint', 'Hear the dub voices (A1) with the video, mixed like the export')}
+            >
+              <AudioLines className="size-3.5" /> {t('player.dub', 'Dub')}
+            </Button>
+          )}
           <Button variant={showSubtitles ? 'secondary' : 'ghost'} size="icon" onClick={() => setSettings({ showSubtitles: !showSubtitles })} title={t('player.subtitles', 'Subtitles')}>
             <Captions />
           </Button>
           <Button variant="ghost" size="icon" onClick={() => setMuted((m) => !m)} title={t('player.mute', 'Mute')}>
-            {muted || volume === 0 ? <VolumeX /> : <Volume2 />}
+            {muted || muteOrig || volume === 0 ? <VolumeX /> : <Volume2 />}
           </Button>
           <input
             type="range"
@@ -316,6 +487,19 @@ export function VideoPlayer() {
             className="w-16"
             aria-label={t('player.volume', 'Volume')}
           />
+          {!full && (
+            <Button
+              variant={bigPlayer ? 'secondary' : 'ghost'}
+              size="icon"
+              onClick={() => useSettings.getState().set({ bigPlayer: !bigPlayer })}
+              title={t('player.half', 'Half screen: make the player bigger')}
+            >
+              <Columns2 />
+            </Button>
+          )}
+          <Button variant="ghost" size="icon" onClick={toggleFull} title={full ? t('player.exitFull', 'Exit full screen (Esc)') : t('player.full', 'Full screen (F, or double-click the video)')}>
+            {full ? <Minimize /> : <Maximize />}
+          </Button>
         </div>
       </div>
     </div>

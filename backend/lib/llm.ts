@@ -172,7 +172,18 @@ async function callClaude(key: string, o: LlmOptions): Promise<string> {
   }
 }
 
-/** Text completion with key rotation: 429 → cool key 60 s and try the next; invalid key → cool 10 min. */
+/** A key/quota problem that no retry can fix — callers must not retry it. */
+export class FatalLlmError extends Error {}
+
+/** How long a 429 says to wait ("Please retry in 21h44m31.7s" or "retryDelay": "78271s"), or null. */
+export function retryAfterMs(msg: string): number | null {
+  const m = msg.match(/retry in\s+(?:(\d+)h)?\s*(?:(\d+)m(?!s))?\s*(?:([\d.]+)s)?/i)
+  if (m && (m[1] || m[2] || m[3])) return Math.round(((Number(m[1]) || 0) * 3600 + (Number(m[2]) || 0) * 60 + (Number(m[3]) || 0)) * 1000)
+  const d = msg.match(/"?retryDelay"?\s*:\s*"([\d.]+)s"/)
+  return d ? Math.round(Number(d[1]) * 1000) : null
+}
+
+/** Text completion with key rotation: 429 → cool key (60 s, or as long as the API says) and try the next; invalid key → cool 10 min. */
 export async function llmText(o: LlmOptions): Promise<string> {
   const keys = keyPool.all(o.provider).length
   const maxAttempts = Math.max(3, keys * 2 + 2)
@@ -192,11 +203,17 @@ export async function llmText(o: LlmOptions): Promise<string> {
       lastErr = err
       if (err instanceof HttpError) {
         const badKey = err.status === 401 || err.status === 403 || (err.status === 400 && /api key/i.test(err.message))
-        if (err.status === 429) keyPool.cool(key.id, 60_000)
-        else if (badKey) {
+        if (err.status === 429) {
+          // daily quota: Google says "retry in 21h44m31s" — cool the key that long instead of 60 s
+          keyPool.cool(key.id, Math.max(60_000, retryAfterMs(err.message) ?? 0))
+          // every key out of quota for minutes or more → fail now instead of waiting it out
+          if (keyPool.stats(o.provider).ready === 0 && keyPool.next(o.provider).waitMs > 120_000) {
+            throw new FatalLlmError(`${err.message}\nAll your ${o.provider} keys are out of quota. Add another key in Settings → API Keys, or pick a different translator.`)
+          }
+        } else if (badKey) {
           keyPool.cool(key.id, 600_000)
           // every key of this provider rejected → fail now instead of waiting out the 10-min cooldown
-          if (keyPool.stats(o.provider).ready === 0) throw new Error(`${err.message}\nCheck the key in Settings → API Keys.`)
+          if (keyPool.stats(o.provider).ready === 0) throw new FatalLlmError(`${err.message}\nCheck the key in Settings → API Keys.`)
         } else if (err.status >= 500) await sleep(1500 * (attempt + 1), o.signal)
         else throw err // other 4xx: request problem, retrying won't help
       } else {

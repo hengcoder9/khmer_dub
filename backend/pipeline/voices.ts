@@ -1,8 +1,10 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CloneVoice, Gender, Voice } from '../../shared/types'
+import { withVariants } from '../../shared/cast'
 import { uid } from '../../shared/defaults'
 import { cacheDir, pythonPath, voicesDir } from '../lib/paths'
+import { listEdgeVoices } from '../lib/edgeTts'
 import { aiWorker } from '../lib/python'
 import { runFfmpeg } from '../lib/ffmpeg'
 import { ffFail } from './extract'
@@ -40,17 +42,14 @@ export async function edgeVoices(refresh = false): Promise<Voice[]> {
       /* re-fetch */
     }
   }
-  if (pythonPath()) {
-    try {
-      const r = await aiWorker.call<{ voices: Array<{ ShortName: string; Gender: string }> }>('/voices/edge', undefined, 60_000)
-      const list = r.voices.map((v) => edgeVoice(v.ShortName, v.Gender?.toLowerCase() === 'female' ? 'female' : 'male'))
-      if (list.length) {
-        writeFileSync(EDGE_CACHE, JSON.stringify(list))
-        return list
-      }
-    } catch {
-      /* fall back */
+  try {
+    const list = (await listEdgeVoices()).map((v) => edgeVoice(v.ShortName, v.Gender?.toLowerCase() === 'female' ? 'female' : 'male'))
+    if (list.length) {
+      writeFileSync(EDGE_CACHE, JSON.stringify(list))
+      return list
     }
+  } catch {
+    /* offline — fall back */
   }
   return EDGE_FALLBACK.map(([s, g]) => edgeVoice(s, g))
 }
@@ -74,7 +73,8 @@ export async function allVoices(): Promise<Voice[]> {
     { id: 'default:male', engine: 'edge', name: 'Default Male', gender: 'male', locale: '' },
     { id: 'default:female', engine: 'edge', name: 'Default Female', gender: 'female', locale: '' },
     ...clones,
-    ...(await edgeVoices())
+    // Khmer has only two Edge voices: add pitch/speed character variants so a cast doesn't all sound the same
+    ...(await edgeVoices()).flatMap((v) => (v.locale.toLowerCase().startsWith('km') ? withVariants(v) : [v]))
   ]
 }
 

@@ -60,59 +60,166 @@ export function isRemoved(removed: Range[], r: Range): boolean {
 /** Default base clip list = the whole video. */
 export const fullClip = (duration: number, id = 'c0'): Clip[] => [{ id, start: 0, end: r3(duration) }]
 
+/** One piece of a base clip; pieces keep the clip's speed/volume/color, only the last keeps its transition. */
+function pieceOf(c: Clip, p: Range, i: number, last: boolean): Clip {
+  const { transition, ...rest } = c
+  return { ...rest, id: i === 0 ? c.id : `${c.id}.${i}`, start: r3(p.start), end: r3(p.end), ...(last && transition ? { transition } : {}) }
+}
+
 /** Final clips in output order after subtracting removed ranges. */
 export function effectiveClips(edit: Pick<EditState, 'clips' | 'removed'>): Clip[] {
   const out: Clip[] = []
   for (const c of edit.clips) {
-    subtract(c, edit.removed).forEach((p, i) => out.push({ id: i === 0 ? c.id : `${c.id}.${i}`, start: r3(p.start), end: r3(p.end) }))
+    const pieces = subtract(c, edit.removed)
+    pieces.forEach((p, i) => out.push(pieceOf(c, p, i, i === pieces.length - 1)))
   }
   return out
 }
 
+/**
+ * Split every base clip at the start of each of its kept pieces, so every timeline clip is its own base clip
+ * (needed before moving/trimming/styling one piece). Removed gaps stay inside the clip before them, so a cut can
+ * still be restored, and piece ids from effectiveClips() stay the same.
+ */
+export function explodeClips(edit: Pick<EditState, 'clips' | 'removed'>): Clip[] {
+  return edit.clips.flatMap((c) => {
+    const pieces = subtract(c, edit.removed)
+    if (pieces.length <= 1) return [c]
+    return pieces.map((p, i) => {
+      const last = i === pieces.length - 1
+      return pieceOf(c, { start: i === 0 ? c.start : p.start, end: last ? c.end : pieces[i + 1].start }, i, last)
+    })
+  })
+}
+
+/** Plain source length of ranges (no speed). */
 export const totalDuration = (clips: Range[]) => r3(clips.reduce((a, c) => a + (c.end - c.start), 0))
 
+type TClip = Range & Partial<Pick<Clip, 'speed' | 'transition'>>
+export const MIN_SPEED = 0.25
+export const MAX_SPEED = 4
+export const clipSpeed = (c: TClip) => Math.max(MIN_SPEED, Math.min(MAX_SPEED, c.speed || 1))
+const outLen = (c: TClip) => (c.end - c.start) / clipSpeed(c)
+
+/** Real length of the transition from clip i into clip i+1 (0 = hard cut); never more than half of either clip. */
+export function transitionDur(clips: TClip[], i: number): number {
+  const tr = clips[i]?.transition
+  if (!tr || i >= clips.length - 1) return 0
+  const d = r3(Math.min(tr.duration, outLen(clips[i]) / 2, outLen(clips[i + 1]) / 2))
+  return d >= 0.05 ? d : 0
+}
+
+export interface Placed<C extends TClip = TClip> {
+  clip: C
+  /** where the clip starts in the output (a transition overlaps it with the previous clip) */
+  outStart: number
+  outLen: number
+}
+
+/** Position of every clip on the output timeline, after speed changes and transition overlaps. */
+export function layoutClips<C extends TClip>(clips: C[]): Placed<C>[] {
+  const out: Placed<C>[] = []
+  let pos = 0
+  clips.forEach((c, i) => {
+    const len = outLen(c)
+    out.push({ clip: c, outStart: r3(pos), outLen: r3(len) })
+    pos += len - transitionDur(clips, i)
+  })
+  return out
+}
+
+/** Length of the edited output. */
+export function outputDuration(clips: TClip[]): number {
+  const l = layoutClips(clips)
+  const last = l[l.length - 1]
+  return last ? r3(last.outStart + last.outLen) : 0
+}
+
 /** Map a source time to output time, or null when that moment is cut. */
-export function sourceToOutput(t: number, clips: Range[]): number | null {
-  let acc = 0
-  for (const c of clips) {
-    if (t >= c.start && t < c.end) return r3(acc + (t - c.start))
-    acc += c.end - c.start
+export function sourceToOutput(t: number, clips: TClip[]): number | null {
+  for (const p of layoutClips(clips)) {
+    if (t >= p.clip.start && t < p.clip.end) return r3(p.outStart + (t - p.clip.start) / clipSpeed(p.clip))
   }
   return null
 }
 
-/** Map an output time back to source time. */
-export function outputToSource(t: number, clips: Range[]): number | null {
-  let acc = 0
-  for (const c of clips) {
-    const len = c.end - c.start
-    if (t < acc + len) return r3(c.start + (t - acc))
-    acc += len
+/** Map an output time back to source time (inside a transition, the incoming clip wins). */
+export function outputToSource(t: number, clips: TClip[]): number | null {
+  let hit: number | null = null
+  for (const p of layoutClips(clips)) {
+    if (t >= p.outStart && t < p.outStart + p.outLen) hit = r3(p.clip.start + (t - p.outStart) * clipSpeed(p.clip))
+  }
+  return hit
+}
+
+/** Output span of a source range: its first kept piece, or null when it is fully cut. */
+export function rangeToOutput(r: Range, placed: Placed[]): (Range & { speed: number }) | null {
+  for (const p of placed) {
+    const s = Math.max(r.start, p.clip.start)
+    const e = Math.min(r.end, p.clip.end)
+    if (e > s) {
+      const sp = clipSpeed(p.clip)
+      return { start: p.outStart + (s - p.clip.start) / sp, end: p.outStart + (e - p.clip.start) / sp, speed: sp }
+    }
   }
   return null
 }
 
-/** Re-time subtitle cues onto the edited output timeline (a cue spanning a cut is split). */
-export function mapCuesToOutput<T extends Cue>(cues: T[], clips: Range[]): T[] {
+/** Re-time subtitle cues onto the edited output timeline (a cue spanning a cut is split; clip speed applies). */
+export function mapCuesToOutput<T extends Cue>(cues: T[], clips: TClip[]): T[] {
   const out: T[] = []
-  let acc = 0
-  for (const c of clips) {
+  for (const p of layoutClips(clips)) {
+    const c = p.clip
+    const sp = clipSpeed(c)
     for (const q of cues) {
       const s = Math.max(q.start, c.start)
       const e = Math.min(q.end, c.end)
-      if (e - s >= 0.2) out.push({ ...q, start: r3(acc + s - c.start), end: r3(acc + e - c.start) })
+      if ((e - s) / sp >= 0.2) out.push({ ...q, start: r3(p.outStart + (s - c.start) / sp), end: r3(p.outStart + (e - c.start) / sp) })
     }
-    acc += c.end - c.start
   }
   return out.sort((a, b) => a.start - b.start)
 }
 
-/** Split the base clip containing source time t into two clips. */
+/** Split the base clip containing source time t into two (both keep its settings; the transition moves to the second). */
 export function splitClipAt(clips: Clip[], t: number, newId: string): Clip[] {
   const i = clips.findIndex((c) => t > c.start + MIN_CLIP && t < c.end - MIN_CLIP)
   if (i < 0) return clips
-  const c = clips[i]
-  return [...clips.slice(0, i), { ...c, end: r3(t) }, { id: newId, start: r3(t), end: c.end }, ...clips.slice(i + 1)]
+  const { transition, ...c } = clips[i]
+  return [
+    ...clips.slice(0, i),
+    { ...c, end: r3(t) },
+    { ...c, id: newId, start: r3(t), end: clips[i].end, ...(transition ? { transition } : {}) },
+    ...clips.slice(i + 1)
+  ]
+}
+
+/**
+ * Drag a clip edge to a new source time. Shrinking cuts the trimmed part out (like Q/W); growing restores cut material
+ * and widens the clip when needed. `clips` must already be exploded so the piece id is a base clip id.
+ */
+export function trimClipEdge(edit: Pick<EditState, 'clips' | 'removed'>, id: string, edge: 'l' | 'r', to: number, duration: number) {
+  const piece = effectiveClips(edit).find((c) => c.id === id)
+  const i = edit.clips.findIndex((c) => c.id === id)
+  if (!piece || i < 0) return edit
+  const base = edit.clips[i]
+  let clips = edit.clips
+  let removed = edit.removed
+  if (edge === 'l') {
+    const t = r3(Math.max(0, Math.min(piece.end - MIN_CLIP * 2, to)))
+    if (t > piece.start) removed = addRemoved(removed, { start: piece.start, end: t })
+    else if (t < piece.start) {
+      removed = restoreRange(removed, { start: t, end: piece.start })
+      if (t < base.start) clips = clips.map((c, k) => (k === i ? { ...c, start: t } : c))
+    }
+  } else {
+    const t = r3(Math.min(duration, Math.max(piece.start + MIN_CLIP * 2, to)))
+    if (t < piece.end) removed = addRemoved(removed, { start: t, end: piece.end })
+    else if (t > piece.end) {
+      removed = restoreRange(removed, { start: piece.end, end: t })
+      if (t > base.end) clips = clips.map((c, k) => (k === i ? { ...c, end: t } : c))
+    }
+  }
+  return { clips, removed }
 }
 
 export function moveClip(clips: Clip[], from: number, to: number): Clip[] {
@@ -127,4 +234,47 @@ export function shrinkRanges(ranges: Range[], pad: number, minLen: number): Rang
   return ranges
     .map((r) => ({ start: r3(r.start + pad), end: r3(r.end - pad) }))
     .filter((r) => r.end - r.start >= minLen)
+}
+
+// ───────── auto original sound ─────────
+
+/** Where dub lines speak (source time), merged so short gaps don't make the original sound flicker on and off. */
+/** Auto original: fade length at each dub edge, and gaps shorter than this stay muted (no on/off flicker). */
+export const AUTO_FADE = 0.3
+export const AUTO_GAP = 0.8
+
+export function dubSpans(lines: Array<{ start: number; dur: number }>, mergeGap = AUTO_GAP): Range[] {
+  const sorted = lines.filter((l) => l.dur > 0).map((l) => ({ start: r3(l.start), end: r3(l.start + l.dur) })).sort((a, b) => a.start - b.start)
+  const out: Range[] = []
+  for (const r of sorted) {
+    const last = out[out.length - 1]
+    if (last && r.start <= last.end + mergeGap) last.end = Math.max(last.end, r.end)
+    else out.push({ ...r })
+  }
+  return out
+}
+
+/** ffmpeg expression: 1 while a dub line speaks, 0 in the gaps, with a short linear fade (seconds) at each edge. */
+export function dubOnExpr(spans: Range[], fade = AUTO_FADE): string {
+  if (!spans.length) return '0'
+  const f = fade.toFixed(3)
+  let terms = spans.map((r) => `clip((t-${(r.start - fade).toFixed(3)})/${f},0,1)*clip((${(r.end + fade).toFixed(3)}-t)/${f},0,1)`)
+  // ffmpeg's expression parser fails on long flat sums (~100 terms): nest them in groups of 20
+  while (terms.length > 20) {
+    const groups: string[] = []
+    for (let i = 0; i < terms.length; i += 20) groups.push(`(${terms.slice(i, i + 20).join('+')})`)
+    terms = groups
+  }
+  return `min(1,${terms.join('+')})`
+}
+
+/** Same curve as dubOnExpr, in JS for the preview: 1 under a dub line, 0 in the gaps, linear fade at the edges. */
+export function dubOnAt(spans: Range[], t: number, fade = AUTO_FADE): number {
+  const c = (x: number) => Math.max(0, Math.min(1, x))
+  let k = 0
+  for (const r of spans) {
+    if (t < r.start - fade) break
+    if (t <= r.end + fade) k += c((t - (r.start - fade)) / fade) * c((r.end + fade - t) / fade)
+  }
+  return Math.min(1, k)
 }

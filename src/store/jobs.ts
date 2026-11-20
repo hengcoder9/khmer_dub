@@ -13,12 +13,34 @@ export const useJobs = create<JobsState>()(() => ({ jobs: {}, keys: { total: 0, 
 type Waiter = { resolve: (j: JobInfo) => void }
 const waiters = new Map<string, Waiter[]>()
 
+const FINISHED = ['done', 'error', 'canceled']
+const rank = (st: JobInfo['status']) => (FINISHED.includes(st) ? 2 : st === 'running' ? 1 : 0)
+
 function onJob(job: JobInfo) {
+  // Fast jobs can finish (and their WebSocket "done" arrive) before the POST /jobs reply does.
+  // That stale "queued" snapshot must not overwrite the finished job, or its waiter hangs at 0% forever.
+  const prev = useJobs.getState().jobs[job.id]
+  if (prev && rank(prev.status) > rank(job.status)) return
   useJobs.setState((s) => ({ jobs: { ...s.jobs, [job.id]: job } }))
-  if (['done', 'error', 'canceled'].includes(job.status)) {
+  if (FINISHED.includes(job.status)) {
     for (const w of waiters.get(job.id) ?? []) w.resolve(job)
     waiters.delete(job.id)
   }
+}
+
+// Safety net: if a WebSocket event is ever missed (sleep, dropped socket), poll until every awaited job settles.
+let poller: ReturnType<typeof setInterval> | null = null
+function ensurePolling() {
+  if (poller) return
+  poller = setInterval(async () => {
+    if (!waiters.size) {
+      clearInterval(poller!)
+      poller = null
+      return
+    }
+    const list = await api<JobInfo[]>('/jobs').catch(() => [] as JobInfo[])
+    list.filter((j) => waiters.has(j.id)).forEach(onJob)
+  }, 3000)
 }
 
 let ws: WebSocket | null = null
@@ -56,8 +78,9 @@ export async function runJob<T>(type: string, payload: unknown, episodeId?: stri
   onJob(job)
   const done = await new Promise<JobInfo>((resolve) => {
     const cur = useJobs.getState().jobs[job.id]
-    if (cur && ['done', 'error', 'canceled'].includes(cur.status)) return resolve(cur)
+    if (cur && FINISHED.includes(cur.status)) return resolve(cur)
     waiters.set(job.id, [...(waiters.get(job.id) ?? []), { resolve }])
+    ensurePolling()
   })
   if (done.status !== 'done') throw new JobError(done)
   return done.result as T

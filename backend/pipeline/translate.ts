@@ -10,7 +10,7 @@ import {
   type TItem,
   type TResult
 } from '../../shared/translate'
-import { llmJson, llmText } from '../lib/llm'
+import { FatalLlmError, llmJson, llmText } from '../lib/llm'
 import { aiWorker } from '../lib/python'
 import type { JobCtx } from '../queue'
 import { keyPool, type Provider } from '../lib/keys'
@@ -72,7 +72,8 @@ export async function translate(p: TranslatePayload, ctx: JobCtx): Promise<{ res
         })
         return validateTranslation(part, raw)
       } catch (e) {
-        if ((e as Error).name === 'AbortError') throw e
+        // bad key / no quota: retrying or splitting the batch only burns minutes
+        if ((e as Error).name === 'AbortError' || e instanceof FatalLlmError) throw e
         lastErr = e as Error
         ctx.log(`translate retry ${attempt + 1}: ${lastErr.message}`)
       }

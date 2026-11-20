@@ -1,4 +1,6 @@
-import { existsSync } from 'node:fs'
+import { existsSync, writeFileSync } from 'node:fs'
+import type { Range } from '../../shared/types'
+import { dubOnExpr } from '../../shared/ranges'
 import { join } from 'node:path'
 import { mixDub } from '../lib/audio'
 import { runFfmpeg } from '../lib/ffmpeg'
@@ -20,6 +22,8 @@ export interface MixPayload {
   origVolume: number
   muteOriginal: boolean
   reverb: boolean
+  /** Auto original: dub line spans; the original is off inside them, on outside (the instrumental fills in under the dub) */
+  autoSpans?: Range[]
 }
 
 /**
@@ -56,7 +60,23 @@ export async function mix(p: MixPayload, ctx: JobCtx): Promise<{ dub: string; mi
     }
   }
   const ratio = Math.max(2, Math.min(20, Math.abs(p.duckLevelDb) / 1.5))
-  if (bgSource) {
+  if (!p.muteOriginal && p.autoSpans) {
+    // Auto original: switch between the original sound (gaps) and the instrumental / quiet original (under the dub)
+    const on = dubOnExpr(p.autoSpans)
+    const inst = p.instrumental && existsSync(p.instrumental) && !p.keepOriginal ? p.instrumental : null
+    const under = p.keepOriginal ? p.origVolume : 0
+    inputs.push('-i', full)
+    const i = idx++
+    filters.push(`[${i}:a]aformat=channel_layouts=stereo,aresample=44100,volume='1-${(1 - under).toFixed(3)}*${on}':eval=frame[orig]`)
+    mixInputs.push('[orig]')
+    if (inst) {
+      inputs.push('-i', inst)
+      const j = idx++
+      filters.push(`[${j}:a]aformat=channel_layouts=stereo,aresample=44100,volume='${on}':eval=frame[inst]`)
+      mixInputs.push('[inst]')
+    }
+    filters.push('[sc]anullsink')
+  } else if (bgSource) {
     inputs.push('-i', bgSource)
     const i = idx++
     filters.push(`[${i}:a]aformat=channel_layouts=stereo,aresample=44100,volume=${bgVol}[bg0]`)
@@ -83,9 +103,11 @@ export async function mix(p: MixPayload, ctx: JobCtx): Promise<{ dub: string; mi
   )
 
   ctx.progress(55, 'Mixing and ducking')
+  // a graph file: one fade term per dub line would overflow the Windows command line on long episodes
+  writeFileSync(join(p.epDir, 'mix_graph.txt'), filters.join(';\n'), 'utf8')
   const r = await runFfmpeg(
-    ['-y', ...inputs, '-filter_complex', filters.join(';'), '-map', '[out]', '-ac', '2', '-ar', '44100', '-c:a', 'pcm_s16le', out, '-progress', 'pipe:1', '-nostats'],
-    { durationSec: p.durationSec, signal: ctx.signal, onProgress: (pct) => ctx.progress(55 + pct * 0.45, 'Mixing and ducking') }
+    ['-y', ...inputs, '-/filter_complex', 'mix_graph.txt', '-map', '[out]', '-ac', '2', '-ar', '44100', '-c:a', 'pcm_s16le', out, '-progress', 'pipe:1', '-nostats'],
+    { cwd: p.epDir, durationSec: p.durationSec, signal: ctx.signal, onProgress: (pct) => ctx.progress(55 + pct * 0.45, 'Mixing and ducking') }
   )
   if (r.code !== 0) throw ffFail('Mix', r.stderr)
   return { dub, mix: out }

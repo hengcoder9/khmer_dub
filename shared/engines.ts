@@ -11,7 +11,7 @@ export interface EngineGroup {
 }
 
 export const ENGINE_GROUPS: EngineGroup[] = [
-  { id: 'core', label: 'Core', description: 'Worker server, Edge-TTS voices, audio I/O', sizeHint: '~60 MB', modules: ['fastapi', 'uvicorn', 'edge_tts', 'numpy', 'soundfile'] },
+  { id: 'core', label: 'Core', description: 'Worker server and audio I/O for the AI engines (Edge-TTS voices work without it)', sizeHint: '~60 MB', modules: ['fastapi', 'uvicorn', 'edge_tts', 'numpy', 'soundfile'] },
   { id: 'whisper', label: 'Whisper (speech-to-text)', description: 'faster-whisper, offline transcription with word timestamps', sizeHint: '~250 MB + model 1.5–3 GB', modules: ['faster_whisper'], requires: ['core'] },
   { id: 'torch', label: 'PyTorch', description: 'GPU runtime used by Demucs, speakers and voice cloning', sizeHint: '~2.5 GB (CUDA) / 200 MB (CPU)', modules: ['torch'], requires: ['core'] },
   { id: 'demucs', label: 'Demucs (remove BGM)', description: 'Separate vocals from music & effects', sizeHint: '~100 MB + model 80 MB', modules: ['demucs'], requires: ['torch'] },

@@ -1,5 +1,5 @@
 import type { Gender } from '../../shared/types'
-import { aiWorker } from '../lib/python'
+import { torchWorker } from '../lib/python'
 import { ensureAudio } from './extract'
 import type { JobCtx } from '../queue'
 
@@ -22,7 +22,7 @@ export interface DiarizeResult {
 /** Offline speakers: voice embeddings per line → agglomerative clustering; gender from median F0 (pyin). */
 export async function diarize(p: DiarizePayload, ctx: JobCtx): Promise<DiarizeResult> {
   const { audio16k } = await ensureAudio(p.videoPath, p.epDir, p.durationSec, ctx, [0, 5])
-  return aiWorker.job<DiarizeResult>(
+  return torchWorker.job<DiarizeResult>(
     'diarize',
     {
       audio: audio16k,

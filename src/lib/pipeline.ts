@@ -4,9 +4,9 @@ import { toast } from 'sonner'
 import type { Actor, Episode, MediaInfo, Segment, SttEngine, Translator, Voice } from '@shared/types'
 import type { RawSeg } from '@shared/segments'
 import type { TResult } from '@shared/translate'
-import { actorStats, autoMatchVoices, matchSpeakers } from '@shared/cast'
+import { actorStats, autoMatchVoices, matchSpeakers, tidyCast } from '@shared/cast'
 import { newSegment, uid } from '@shared/defaults'
-import { effectiveClips, mapCuesToOutput, totalDuration } from '@shared/ranges'
+import { dubSpans, effectiveClips, mapCuesToOutput, outputDuration } from '@shared/ranges'
 import { mergeListenRead } from '@shared/screenmerge'
 import type { Cue } from '@shared/srt'
 import { api, post } from './api'
@@ -25,6 +25,13 @@ import {
 import { llmChoice, useSettings } from '@/store/settings'
 
 const S = () => useSettings.getState()
+/** Source language to send: "same as the target" makes no sense for dubbing (it made Whisper hear Chinese as Khmer), so treat it as auto. */
+const srcLang = (st: { sourceLang: string; targetLang: string }) => (st.sourceLang === st.targetLang ? 'auto' : st.sourceLang)
+/** Remember a detected language only while set to auto, and never the target language itself. */
+const keepDetected = (lang?: string) => {
+  const st = P().project?.settings
+  if (lang && st && srcLang(st) === 'auto' && lang !== st.targetLang) mutate((pp) => ({ ...pp, settings: { ...pp.settings, sourceLang: lang } }), { undo: false })
+}
 const P = () => useProject.getState()
 
 export const VIDEO_FILTERS = [{ name: 'Video', extensions: ['mp4', 'mkv', 'mov', 'm4v', 'webm', 'avi'] }]
@@ -53,10 +60,41 @@ export async function importVideo(epId?: string, path?: string) {
   const p = path ?? (await window.api.openFile({ filters: VIDEO_FILTERS }))
   if (!p) return
   const info = await post<MediaInfo>('/media/probe', { path: p })
-  if (e.segments.length && e.videoPath && !confirm('Replace the video of this episode? Lines are kept.')) return
+  const oldLines = e.videoPath && e.videoPath !== p ? e.segments.length : 0
+  if (oldLines && !confirm('Replace the video of this episode?')) return
   setEpisodeVideo(e.id, info)
   info.warnings.forEach((w) => toast.warning(w))
+  // the old lines belong to the old video: offer to make lines for this one right away
+  if (oldLines && confirm(`This episode has ${oldLines} lines from the previous video. Make new lines for this video now?
+
+OK = new lines (Listen + Read, then translate)
+Cancel = keep the old lines`)) {
+    void remakeLines(e.id)
+  } else autoLines([e.id])
   return info
+}
+
+/** Lines that start after the end of the episode's video: they came from a different (longer) video. */
+export const staleLines = (e: Episode) => (e.durationSec > 0 ? e.segments.filter((s) => s.start > e.durationSec + 0.5).length : 0)
+
+/** Replace every line with a fresh Listen + Read of the episode's current video (no extra question). */
+export async function remakeLines(epId?: string) {
+  return listenReadSrt(epId, { saveSrt: false, ask: false }).catch(notify)
+}
+
+/**
+ * After a video import: make the dubbing lines automatically (Listen + Read, then translate) for every episode
+ * that has a video but no lines yet. Runs one episode at a time in the background; turn off with the "Auto" toggle.
+ */
+export function autoLines(epIds: string[]) {
+  if (!S().autoLines) return
+  void (async () => {
+    for (const id of epIds) {
+      const e = P().project?.episodes.find((x) => x.id === id)
+      if (!e?.videoPath || e.segments.length) continue
+      await listenReadSrt(id, { saveSrt: false }).catch(notify)
+    }
+  })()
 }
 
 export async function importSubtitles(epId?: string) {
@@ -68,6 +106,7 @@ export async function importSubtitles(epId?: string) {
   const segs = cues.map((c) => newSegment(c.start, c.end, asTarget ? '' : c.text, asTarget ? c.text : ''))
   updateEpisode(e.id, (x) => ({ ...x, segments: sortSegments(segs), status: asTarget ? 'translated' : 'transcribed' }))
   toast.success(`Imported ${segs.length} lines`)
+  await castLines(e.id)
 }
 
 export function episodeCues(e: Episode, source: 'target' | 'original' = 'target'): Cue[] {
@@ -78,6 +117,7 @@ export function episodeCues(e: Episode, source: 'target' | 'original' = 'target'
 
 export async function exportSubtitles(format: 'srt' | 'vtt', epId?: string) {
   const e = ep(epId)
+  if (!episodeCues(e).length) throw new Error('No subtitle lines in this episode yet — run Transcribe or Listen + Read → SRT first')
   const name = `${P().project?.name ?? 'subtitles'}_${e.label}.${format}`
   const p = await window.api.saveFile({ defaultPath: name, filters: [{ name: format.toUpperCase(), extensions: [format] }] })
   if (!p) return
@@ -142,7 +182,7 @@ function transcribeJob(e: Episode, engine: SttEngine) {
       videoPath: e.videoPath,
       epDir: epDir(e),
       durationSec: e.durationSec,
-      sourceLang: p.settings.sourceLang,
+      sourceLang: srcLang(p.settings),
       targetLang: p.settings.targetLang,
       glossary: p.glossary,
       geminiModel: S().geminiModel,
@@ -164,7 +204,7 @@ export async function transcribe(engine: SttEngine, epId?: string, opts: { chain
   const speakerOf: Record<string, string> = {}
   r.segments.forEach((s, i) => s.speaker && (speakerOf[segs[i].id] = s.speaker))
   updateEpisode(e.id, (x) => ({ ...x, segments: segs, status: engine === 'gemini-direct' ? 'translated' : 'transcribed' }))
-  if (r.language && p.settings.sourceLang === 'auto') mutate((pp) => ({ ...pp, settings: { ...pp.settings, sourceLang: r.language! } }), { undo: false })
+  keepDetected(r.language)
   toast.success(`Transcribed ${segs.length} lines`)
 
   // Gemini returns speakers + gender directly
@@ -174,13 +214,58 @@ export async function transcribe(engine: SttEngine, epId?: string, opts: { chain
     applyCastFromSpeakers(e.id, speakerIds.map((id) => ({ id, gender: genders.get(id) ?? 'unknown' })), speakerOf)
   }
   // chains
-  if (!chain) return
-  if (engine === 'offline') {
-    await diarize(e.id).catch(notify)
-    await translate(e.id, undefined, 'offline')
-  } else if (engine === 'whisper' || engine === 'gemini-cast') {
-    await translate(e.id)
+  if (!chain) return assignDefaultActor(e.id)
+  await castLines(e.id, speakerIds.length > 0)
+  if (engine === 'offline') await translate(e.id, undefined, 'offline')
+  else if (engine === 'whisper' || engine === 'gemini-cast') await translate(e.id)
+}
+
+// ───────── default cast ─────────
+
+/**
+ * Give new lines a cast: detect speakers offline (one actor per voice, male/female from pitch) unless the transcriber
+ * already did; anything still without an actor goes to the first actor, created as "A1" if the cast is empty.
+ */
+export async function castLines(epId: string, haveSpeakers = false) {
+  const e = ep(epId)
+  if (!e.segments.length) return
+  if (!haveSpeakers && e.videoPath && e.segments.length > 1) {
+    await diarize(epId).catch((err) => toast.warning(`Couldn't detect speakers (${(err as Error).message.split(/\r?\n/)[0]}) — all lines go to actor A1`))
   }
+  assignDefaultActor(epId)
+  await fillVoices()
+}
+
+/** Lines without an actor → the first actor (A1 is created when the cast is empty); every actor gets a voice. */
+export function assignDefaultActor(epId: string) {
+  mutate((p) => {
+    const e = p.episodes.find((x) => x.id === epId)
+    if (!e || e.segments.every((s) => s.actorId)) return p
+    const a: Actor = p.cast[0] ?? { id: 'A1', label: 'A1', gender: 'unknown', lines: 0, totalSec: 0, sampleText: '' }
+    const cast = p.cast.length ? p.cast : [a]
+    const episodes = p.episodes.map((x) => (x.id !== epId ? x : { ...x, segments: x.segments.map((s) => (s.actorId ? s : { ...s, actorId: a.id })) }))
+    return { ...p, episodes, cast: actorStats(cast, episodes.flatMap((x) => x.segments)) }
+  }, { undo: false })
+}
+
+/** Language of an Edge voice id ("edge:km-KH-PisethNeural" → "km"); null for clones / defaults (they speak anything). */
+export const voiceLang = (id?: string) => id?.match(/^edge:([a-z]{2,3})-/i)?.[1].toLowerCase() ?? null
+
+/** Make the default male/female voices speak the target language (a Khmer voice can't read Vietnamese). */
+export async function syncDefaultVoices(lang: string) {
+  const st = S()
+  const okM = voiceLang(st.defaultMale) === lang
+  const okF = voiceLang(st.defaultFemale) === lang
+  if (okM && okF) return
+  const voices = (await loadVoices().catch(() => [] as Voice[])).filter((v) => v.engine === 'edge' && v.locale.toLowerCase().startsWith(lang + '-'))
+  if (!voices.length) return
+  const pick = (g: Voice['gender']) => voices.find((v) => v.gender === g) ?? voices[0]
+  const patch: { defaultMale?: string; defaultFemale?: string } = {}
+  if (!okM) patch.defaultMale = pick('male').id
+  if (!okF) patch.defaultFemale = pick('female').id
+  st.set(patch)
+  const name = (id?: string) => voices.find((v) => v.id === id)?.name
+  toast.info(`Default voices now speak ${lang}: ${[name(patch.defaultMale), name(patch.defaultFemale)].filter(Boolean).join(' / ')}`)
 }
 
 export async function diarize(epId?: string) {
@@ -199,7 +284,36 @@ export async function diarize(epId?: string) {
     e.id
   )
   applyCastFromSpeakers(e.id, r.speakers, r.assign)
-  toast.success(`Found ${r.speakers.length} speakers`)
+  const n = tidyActors()
+  await fillVoices()
+  toast.success(`Found ${n} speakers`)
+}
+
+/** Merge actors with only a few lines into the closest main actor (speaker detection over-splits). Returns the cast size. */
+export function tidyActors(maxActors = 10): number {
+  let size = 0
+  mutate((p) => {
+    const all = p.episodes.flatMap((e) => e.segments)
+    const { cast, remap } = tidyCast(p.cast, all, maxActors)
+    size = cast.length
+    if (!Object.keys(remap).length) return p
+    const episodes = p.episodes.map((e) => ({ ...e, segments: e.segments.map((s) => (s.actorId && remap[s.actorId] ? { ...s, actorId: remap[s.actorId] } : s)) }))
+    return { ...p, episodes, cast: actorStats(cast, episodes.flatMap((e) => e.segments)) }
+  })
+  return size
+}
+
+/** Actors without a voice get one in the target language — each a different voice/variant where possible. */
+export async function fillVoices() {
+  const p = P().project
+  if (!p?.cast.some((a) => !a.voiceId || (voiceLang(a.voiceId) && voiceLang(a.voiceId) !== p.settings.targetLang))) return
+  const voices = (await loadVoices().catch(() => [] as Voice[])).filter((v) => !v.id.startsWith('default:'))
+  mutate((pp) => {
+    const lang = pp.settings.targetLang
+    const matched = autoMatchVoices(pp.cast, voices, lang)
+    const bad = (id?: string) => !id || (!!voiceLang(id) && voiceLang(id) !== lang)
+    return { ...pp, cast: pp.cast.map((a, i) => (bad(a.voiceId) ? { ...a, voiceId: matched[i].voiceId } : a)) }
+  }, { undo: false })
 }
 
 // ───────── translation ─────────
@@ -221,7 +335,7 @@ export async function translate(epId?: string, ids?: string[], provider?: Transl
       items: segs.map((s) => ({ id: s.id, text: s.textOriginal })),
       provider: provider ?? p.settings.translator,
       targetLang: p.settings.targetLang,
-      sourceLang: p.settings.sourceLang,
+      sourceLang: srcLang(p.settings),
       glossary: p.glossary,
       context: before.map((s) => ({ id: s.id, khmer: s.textTarget })),
       geminiModel: S().geminiModel,
@@ -277,10 +391,11 @@ export async function loadVoices(refresh = false): Promise<Voice[]> {
   return voiceCache
 }
 
-export function voiceFor(s: Segment, cast: Actor[]): string {
-  if (s.voiceId) return s.voiceId
+export function voiceFor(s: Segment, cast: Actor[], lang?: string): string {
   const a = cast.find((x) => x.id === s.actorId)
-  if (a?.voiceId) return a.voiceId
+  const fits = (id?: string) => !!id && (!lang || !voiceLang(id) || voiceLang(id) === lang)
+  if (fits(s.voiceId)) return s.voiceId!
+  if (fits(a?.voiceId)) return a!.voiceId!
   return a?.gender === 'female' ? 'default:female' : 'default:male'
 }
 
@@ -308,7 +423,7 @@ export async function generateVoices(ids?: string[], epId?: string) {
         return {
           id: s.id,
           text: s.textTarget,
-          voiceId: voiceFor(s, p.cast),
+          voiceId: voiceFor(s, p.cast, st.targetLang),
           speed: Math.max(0.5, s.speed * st.globalSpeed),
           pitch: s.pitch + st.globalPitch,
           start: s.start,
@@ -362,7 +477,12 @@ export async function mixEpisode(epId?: string) {
       keepOriginal: st.keepOriginal,
       origVolume: st.origVolume,
       muteOriginal: st.muteOriginal,
-      reverb: st.reverb
+      reverb: st.reverb,
+      // imported voice tracks have no line timings: they keep the ducking behaviour
+      autoSpans:
+        (st.autoOriginal ?? true) && !e.voiceTrack
+          ? dubSpans(e.segments.filter((s) => s.audioPath && s.audioDur).map((s) => ({ start: s.start, dur: s.audioDur! })))
+          : undefined
     },
     e.id
   )
@@ -391,12 +511,26 @@ export async function exportEpisode(opts: ExportOptions, epId?: string) {
   const p = P().project!
   let mixPath: string | undefined
   if (opts.mp4 && !opts.originalAudio && (e.segments.some((s) => s.audioPath) || e.voiceTrack)) {
+    if (p.settings.globalVolume < 0.05) toast.warning('Dub volume is 0% — the dub voices will be silent in this video. Raise "Dub volume" on the timeline toolbar.', { duration: 10000 })
     if (opts.remix || !e.stems.mix) await mixEpisode(e.id)
     e = ep(e.id)
     mixPath = e.stems.mix
   }
+  // an empty cue list used to write blank .srt/.vtt/.ass files and still mark the episode exported
+  const cues = episodeCues(e, p.settings.captions.source)
+  const wantsSubs = opts.srt || opts.vtt || opts.ass || opts.burn
   const clips = effectiveClips(e.edit)
   const editOn = opts.applyEdit && e.edit.enabled
+  // lines can all sit in parts the video edit cuts out — that also gave a blank .srt with no explanation
+  const kept = editOn ? mapCuesToOutput(cues, clips).length : cues.length
+  if (wantsSubs && !kept) {
+    const why = cues.length
+      ? `All ${cues.length} subtitle line${cues.length > 1 ? 's are' : ' is'} in parts of the video you cut out`
+      : 'No subtitle lines in this episode yet — run Transcribe or Listen + Read → SRT first'
+    if (!opts.mp4) throw new Error(why)
+    toast.warning(`${why} — exporting the video without subtitles`)
+    opts = { ...opts, srt: false, vtt: false, ass: false, burn: false }
+  }
   const r = await runJob<{ files: string[] }>(
     'export',
     {
@@ -412,7 +546,7 @@ export async function exportEpisode(opts: ExportOptions, epId?: string) {
         .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
         .trim()
         .replace(/[. ]+$/, '') || 'export',
-      cues: episodeCues(e, p.settings.captions.source),
+      cues,
       captions: p.settings.captions,
       captionLang: p.settings.captions.source === 'target' ? p.settings.targetLang : p.settings.sourceLang || 'en',
       burn: opts.burn,
@@ -425,7 +559,9 @@ export async function exportEpisode(opts: ExportOptions, epId?: string) {
         dubWav: opts.dubWav ? e.stems.dub : undefined,
         instrumental: opts.instrumental ? e.stems.instrumental : undefined
       },
-      encoder: opts.cpu ? 'cpu' : 'auto'
+      encoder: opts.cpu ? 'cpu' : 'auto',
+      fps: e.media?.video?.fps,
+      muteOriginal: p.settings.muteOriginal && !opts.originalAudio
     },
     e.id
   )
@@ -433,7 +569,7 @@ export async function exportEpisode(opts: ExportOptions, epId?: string) {
   return r.files
 }
 
-export const editedDuration = (e: Episode) => (e.edit.enabled ? totalDuration(effectiveClips(e.edit)) : e.durationSec)
+export const editedDuration = (e: Episode) => (e.edit.enabled ? outputDuration(effectiveClips(e.edit)) : e.durationSec)
 
 // ───────── read screen (OCR) ─────────
 
@@ -461,13 +597,17 @@ const safeName = (s: string) => s.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim().
  * Listen to the speech (Whisper: precise timing) and read the burned-in subtitles (Gemini vision: exact words)
  * at the same time, merge them, translate to the target language and save original + translated SRT files.
  */
-export async function listenReadSrt(epId?: string) {
+export async function listenReadSrt(epId?: string, opts: { saveSrt?: boolean; ask?: boolean } = {}) {
+  const { saveSrt = true, ask = true } = opts
   const e = ep(epId)
   needVideo(e)
   const p = P().project!
-  if (e.segments.length && !confirm(`Replace the ${e.segments.length} existing lines with a new Listen + Read result?`)) return
-  const outDir = await window.api.openDir({ title: 'Save the SRT files to…' })
-  if (!outDir) return
+  if (ask && e.segments.length && !confirm(`Replace the ${e.segments.length} existing lines with a new Listen + Read result?`)) return
+  toast.info(
+    saveSrt
+      ? 'Listen + Read started — listening to the speech and reading the screen…'
+      : `${e.label}: making dubbing lines automatically — listening to the speech and reading the screen…`
+  )
 
   const listen = async () => {
     try {
@@ -488,40 +628,62 @@ export async function listenReadSrt(epId?: string) {
   if (!m.lines.length) throw new Error('No speech or subtitles found in this video')
   const segs = m.lines.map((l) => newSegment(l.start, l.end, l.original, l.target))
   updateEpisode(e.id, (x) => ({ ...x, segments: segs, status: m.screenIsTarget ? 'translated' : 'transcribed' }))
-  if (heard.language && p.settings.sourceLang === 'auto') mutate((pp) => ({ ...pp, settings: { ...pp.settings, sourceLang: heard.language! } }), { undo: false })
+  keepDetected(heard.language)
   toast.success(
     m.usedScreen
       ? `Listen + Read: ${segs.length} lines (${Math.round(m.coverage * 100)}% of speech had on-screen subtitles)`
       : `No burned-in subtitles found — ${segs.length} lines from speech`
   )
 
+  await castLines(e.id)
   // translate what isn't translated yet; still save the original SRT if translation fails
   let trErr: unknown
   if (segs.some((s) => !s.textTarget.trim())) await translate(e.id).catch((err) => (trErr = err))
+  if (!saveSrt) {
+    if (trErr) throw trErr
+    toast.success(`${e.label}: ${segs.length} dubbing lines ready — next: Generate Voices`)
+    return []
+  }
 
-  const done = ep(e.id)
+  if (trErr) notify(trErr)
+  return saveSrtFiles(e.id)
+}
+
+/**
+ * One click "Export SRT": original + translated SRT into the project's exports folder (no save dialog to get lost),
+ * following the edited timeline when edits are on.
+ */
+export async function saveSrtFiles(epId?: string) {
+  const done = ep(epId)
+  const p = P().project!
+  const outDir = `${P().dir}\\exports\\${done.label}`
   const map = (cues: Cue[]) => (done.edit.enabled ? mapCuesToOutput(cues, effectiveClips(done.edit)) : cues)
   const base = safeName(`${p.name.trim().slice(0, 60).trim()}_${done.label}`)
-  const src = P().project!.settings.sourceLang
-  const tgt = P().project!.settings.targetLang
+  const src = srcLang(p.settings)
+  const tgt = p.settings.targetLang
   const files: string[] = []
-  const save = async (name: string, cues: Cue[]) => {
-    if (!cues.length) return
+  const write = async (name: string, cues: Cue[]) => {
+    const mapped = map(cues)
+    if (!mapped.length) return
     const path = `${outDir}\\${name}`
-    await post('/subs/export', { path, cues: map(cues), format: 'srt' })
+    await post('/subs/export', { path, cues: mapped, format: 'srt' })
     files.push(path)
   }
   const orig = sortSegments(done.segments).map((s) => ({ start: s.start, end: s.end, text: s.textOriginal.trim() })).filter((c) => c.text)
   const trans = sortSegments(done.segments).map((s) => ({ start: s.start, end: s.end, text: s.textTarget.trim() })).filter((c) => c.text)
-  await save(`${base}_${src && src !== 'auto' ? src : 'original'}.srt`, orig)
-  await save(`${base}_${tgt}.srt`, trans)
-  if (trErr) notify(trErr)
-  if (files.length) {
-    toast.success(`Saved ${files.length} SRT file${files.length > 1 ? 's' : ''}`, {
-      duration: 10000,
-      action: { label: 'Show', onClick: () => window.api.showInFolder(files[files.length - 1]) }
-    })
+  await write(`${base}_${src !== 'auto' ? src : 'original'}.srt`, orig)
+  await write(`${base}_${tgt}.srt`, trans)
+  if (!files.length) {
+    throw new Error(
+      orig.length || trans.length
+        ? 'All subtitle lines are in parts of the video you cut out'
+        : 'No subtitle lines yet — run Listen + Read → SRT or Transcribe first'
+    )
   }
+  toast.success(`Saved ${files.length} SRT file${files.length > 1 ? 's' : ''} to exports\\${done.label}`, {
+    duration: 10000,
+    action: { label: 'Show', onClick: () => window.api.showInFolder(files[files.length - 1]) }
+  })
   return files
 }
 

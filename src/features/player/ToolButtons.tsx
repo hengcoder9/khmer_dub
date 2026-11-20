@@ -5,8 +5,9 @@ import { AudioWaveform, Bot, Captions, FileDown, FileUp, Loader2, Music, Video, 
 import { cn } from '@/lib/utils'
 import { mutate, useActiveEpisode, useProject } from '@/store/project'
 import { useUi } from '@/store/ui'
-import { exportSubtitles, importBgm, importSubtitles, importVideo, importVoiceTrack, notify, separateVocals } from '@/lib/pipeline'
-import { DropdownContent, DropdownItem, DropdownMenu, DropdownTrigger } from '@/components/ui/controls'
+import { importBgm, saveSrtFiles, importSubtitles, importVideo, importVoiceTrack, notify, separateVocals } from '@/lib/pipeline'
+import { DropdownContent, DropdownMenu, DropdownTrigger } from '@/components/ui/controls'
+import { useSettings } from '@/store/settings'
 
 interface Tool {
   key: string
@@ -49,19 +50,18 @@ export function ToolButtons() {
       active: muteOriginal,
       run: () => {
         mutate((p) => ({ ...p, settings: { ...p.settings, muteOriginal: !p.settings.muteOriginal } }), { undo: false })
-        toast.info(!muteOriginal ? t('tools.mutedOn', 'Original audio will be muted in the mix') : t('tools.mutedOff', 'Original/instrumental audio is back in the mix'))
+        toast.info(
+          !muteOriginal
+            ? t('tools.mutedOn2', 'Original audio OFF — muted in the preview and the export (only dub voices / BGM are heard)')
+            : t('tools.mutedOff', 'Original/instrumental audio is back in the mix')
+        )
       }
     },
     {
       key: 'exportSrt',
       icon: FileDown,
       label: t('tools.exportSrt', 'Export SRT'),
-      menu: (
-        <>
-          <DropdownItem onSelect={() => exportSubtitles('srt').catch(notify)}>SRT</DropdownItem>
-          <DropdownItem onSelect={() => exportSubtitles('vtt').catch(notify)}>WebVTT</DropdownItem>
-        </>
-      )
+      run: () => saveSrtFiles()
     },
     { key: 'importSrt', icon: FileUp, label: t('tools.importSrt', 'Import SRT/VTT'), run: () => importSubtitles() },
     {
@@ -71,8 +71,13 @@ export function ToolButtons() {
       active: burn,
       run: () => {
         mutate((p) => ({ ...p, settings: { ...p.settings, burnSubtitles: !p.settings.burnSubtitles } }), { undo: false })
-        if (!burn) setUi({ centerTab: 'editor' })
-        toast.info(!burn ? t('tools.burnOn', 'Subtitles will be burned into the exported video — style them in AI Video Editor → Captions') : t('tools.burnOff', 'Subtitles will not be burned in'))
+        // show them in the preview, the way they will look burned in
+        if (!burn) useSettings.getState().set({ showSubtitles: true })
+        toast.info(
+          !burn
+            ? t('tools.burnOn2', 'Burn ON — the subtitles you see in the preview will be burned into the video when you Export (style: AI Video Editor → Captions)')
+            : t('tools.burnOff', 'Subtitles will not be burned in')
+        )
       }
     },
     { key: 'automate', icon: Bot, label: t('tools.automate', 'Automate'), run: () => setUi({ dialog: 'automate' }) }

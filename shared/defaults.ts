@@ -19,6 +19,7 @@ export const defaultSettings = (): ProjectSettings => ({
   keepOriginal: false,
   origVolume: 0.15,
   muteOriginal: false,
+  autoOriginal: true,
   reverb: false,
   globalSpeed: 1,
   globalPitch: 0,

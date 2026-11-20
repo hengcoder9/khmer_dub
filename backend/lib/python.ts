@@ -140,8 +140,20 @@ export class PyWorker {
     return j as T
   }
 
-  /** Start a long-running worker job and poll it, forwarding progress and cancellation. */
+  /** Start a long-running worker job and poll it; a worker that dies mid-job is restarted and the job retried once. */
   async job<T>(kind: string, payload: unknown, ctx?: JobCtx, progressSpan: [number, number] = [0, 100]): Promise<T> {
+    try {
+      return await this.jobOnce<T>(kind, payload, ctx, progressSpan)
+    } catch (e) {
+      const msg = (e as Error).message
+      if (ctx?.signal.aborted || (e as Error).name === 'AbortError' || !/stopped unexpectedly|fetch failed|ECONNRESET|ECONNREFUSED/i.test(msg)) throw e
+      ctx?.log(`${this.name} crashed during ${kind} (${msg.slice(0, 160)}) — restarting it and retrying once`)
+      this.stop()
+      return this.jobOnce<T>(kind, payload, ctx, progressSpan)
+    }
+  }
+
+  private async jobOnce<T>(kind: string, payload: unknown, ctx?: JobCtx, progressSpan: [number, number] = [0, 100]): Promise<T> {
     const { id } = await this.call<{ id: string }>(`/jobs/${kind}`, payload)
     const [a, b] = progressSpan
     let canceled = false
@@ -177,6 +189,11 @@ export class PyWorker {
 }
 
 export const aiWorker = new PyWorker('ai-worker', 'ai_worker.py')
+/**
+ * PyTorch jobs (speaker detection, vocal separation) get their own process: once Whisper (CTranslate2) has loaded its
+ * cuDNN, torch dies loading another one ("Could not load symbol cudnnGetLibConfig") and took every job with it.
+ */
+export const torchWorker = new PyWorker('torch-worker', 'ai_worker.py')
 
 /** Voice-clone workers ("lanes"), one process per lane. */
 let cloneLanes: PyWorker[] = []
@@ -194,5 +211,6 @@ export const cloneLaneCount = () => cloneLanes.length
 
 export function stopAllWorkers() {
   aiWorker.stop()
+  torchWorker.stop()
   cloneLanes.forEach((w) => w.stop())
 }

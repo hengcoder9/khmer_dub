@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Loader2, Play, Plus, Trash2, Users, Wand2, Check } from 'lucide-react'
+import { Loader2, Merge, Play, Plus, Trash2, Users, Wand2, Check } from 'lucide-react'
 import type { Actor } from '@shared/types'
 import { ACTOR_COLORS } from '@shared/defaults'
 import { Button } from '@/components/ui/button'
@@ -9,7 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/control
 import { mutate, useActiveEpisode, useProject, updateEpisode } from '@/store/project'
 import { useSettings } from '@/store/settings'
 import { useVoices } from '@/lib/hooks'
-import { addActor, autoMatchCast, diarize, generateVoices, notify, refreshCastStats } from '@/lib/pipeline'
+import { addActor, autoMatchCast, diarize, fillVoices, generateVoices, notify, refreshCastStats, tidyActors } from '@/lib/pipeline'
 import { mediaUrl, post } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -76,6 +76,20 @@ export function CastPopover() {
           <div className="flex-1" />
           <Button size="sm" variant="outline" onClick={run('diar', () => diarize())} disabled={!!busy || !ep?.segments.length} title={t('cast.detectHint', 'Detect speakers & gender offline')}>
             {busy === 'diar' ? <Loader2 className="animate-spin" /> : <Users />} {t('cast.detect', 'Detect speakers')}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={run('tidy', async () => {
+              const before = cast.length
+              const n = tidyActors()
+              await fillVoices()
+              toast.success(t('cast.tidied', 'Cast: {{a}} → {{b}} actors, each with its own voice', { a: before, b: n }))
+            })}
+            disabled={!!busy || cast.length < 2}
+            title={t('cast.tidyHint', 'Merge actors with only a few lines into the closest main actor (max 10) and give every actor a voice')}
+          >
+            <Merge /> {t('cast.tidy', 'Tidy')}
           </Button>
           <Button size="sm" variant="outline" onClick={run('match', autoMatchCast)} disabled={!!busy || !cast.length}>
             <Wand2 /> {t('cast.autoMatch', 'Auto-match')}

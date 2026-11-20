@@ -1,11 +1,12 @@
 {
   "name": "khmerdub-studio",
   "productName": "KhmerDub Studio",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "AI video dubbing studio (Khmer and more)",
   "private": true,
   "main": "./out/main/index.js",
   "scripts": {
+    "start": "node out/main/server.js",
     "dev": "node scripts/electron-vite.mjs dev",
     "build": "electron-vite build",
     "preview": "node scripts/electron-vite.mjs preview",
@@ -24,7 +25,8 @@
     "@fastify/websocket": "^11.3.7",
     "electron-updater": "^6.8.11",
     "fastify": "^5.1.0",
-    "mysql2": "^3.24.6"
+    "mysql2": "^3.24.6",
+    "ws": "^8.23.0"
   },
   "devDependencies": {
     "@radix-ui/react-dialog": "^1.1.2",

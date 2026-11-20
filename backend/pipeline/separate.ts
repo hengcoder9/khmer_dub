@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { aiWorker } from '../lib/python'
+import { torchWorker } from '../lib/python'
 import { ensureAudio, fresh } from './extract'
 import type { JobCtx } from '../queue'
 
@@ -17,7 +17,7 @@ export async function separate(p: SeparatePayload, ctx: JobCtx) {
   const instrumental = join(p.epDir, 'instrumental.wav')
   if (!(fresh(vocals, full) && fresh(instrumental, full))) {
     ctx.progress(10, 'Separating vocals (demucs)')
-    await aiWorker.job('separate', { input: full, vocals, instrumental, device: p.device ?? 'auto' }, ctx, [10, 100])
+    await torchWorker.job('separate', { input: full, vocals, instrumental, device: p.device ?? 'auto' }, ctx, [10, 100])
   }
   return { full, audio16k, vocals, instrumental }
 }

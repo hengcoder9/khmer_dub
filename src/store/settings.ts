@@ -33,6 +33,10 @@ interface SettingsState {
   silenceDb: number
   silenceMin: number
   showSubtitles: boolean
+  /** player column takes half the window */
+  bigPlayer: boolean
+  /** make dubbing lines (Listen + Read, then translate) as soon as a video is imported */
+  autoLines: boolean
   set: (patch: Partial<Omit<SettingsState, 'set' | 'addRecent'>>) => void
   addRecent: (r: Omit<Recent, 'openedAt'>) => void
   // legacy setters used by Phase 1 components
@@ -64,6 +68,8 @@ export const useSettings = create<SettingsState>()(
       silenceDb: -35,
       silenceMin: 0.8,
       showSubtitles: true,
+      bigPlayer: false,
+      autoLines: true,
       set: (patch) => set(patch),
       addRecent: (r) =>
         set((s) => ({ recent: [{ ...r, openedAt: Date.now() }, ...s.recent.filter((x) => x.dir !== r.dir)].slice(0, 12) })),

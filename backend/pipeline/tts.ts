@@ -1,10 +1,12 @@
 import { createHash } from 'node:crypto'
+import { parseVoiceVariant } from '../../shared/cast'
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { atempoChain, computeFit, edgePitch, edgeRate } from '../../shared/fit'
 import { runFfmpeg } from '../lib/ffmpeg'
 import { readWavInfo } from '../lib/audio'
-import { aiWorker, nextCloneLane, cloneLaneCount } from '../lib/python'
+import { nextCloneLane, cloneLaneCount } from '../lib/python'
+import { edgeSynthBatch } from '../lib/edgeTts'
 import { ffFail } from './extract'
 import { getCloneVoice } from './voices'
 import type { JobCtx } from '../queue'
@@ -89,11 +91,15 @@ function plan(item: TtsItem, p: TtsPayload, dir: string, speed: number): Gen {
   let voiceId = item.voiceId || 'default:male'
   if (voiceId === 'default:male') voiceId = p.defaultMale
   if (voiceId === 'default:female') voiceId = p.defaultFemale
-  const [engine, voice] = voiceId.split(':', 2) as ['edge' | 'clone', string]
+  const [engine, full] = voiceId.split(':', 2) as ['edge' | 'clone', string]
+  // character variant ("…#-14,0.95"): pitch offset + speed factor on top of the line's own settings
+  const fx = parseVoiceVariant(full)
+  const voice = fx.base
   const text = applyDictionary(item.text, p.dictionary)
-  const s = Math.round(speed * 100) / 100
-  const h = hash(engine, voice, text, s, item.pitch)
-  return { id: item.id, engine, voice, text, speed: s, pitch: item.pitch, raw: join(dir, `${h}.${engine === 'edge' ? 'mp3' : 'wav'}`), trimmed: join(dir, `${h}.t.wav`) }
+  const s = Math.round(speed * fx.rate * 100) / 100
+  const pitch = item.pitch + fx.pitch
+  const h = hash(engine, voice, text, s, pitch)
+  return { id: item.id, engine, voice, text, speed: s, pitch, raw: join(dir, `${h}.${engine === 'edge' ? 'mp3' : 'wav'}`), trimmed: join(dir, `${h}.t.wav`) }
 }
 
 /** Generate missing raw files for a batch (edge in one worker job; clone across GPU lanes). */
@@ -106,16 +112,12 @@ async function generate(gens: Gen[], ctx: JobCtx, span: [number, number]): Promi
   const mid = edge.length && clone.length ? (a + b) / 2 : b
 
   if (edge.length) {
-    const r = await aiWorker.job<{ results: Array<{ id: string; ok: boolean; error?: string }> }>(
-      'tts_edge',
-      {
-        items: edge.map((g) => ({ id: g.id, text: g.text, voice: g.voice, rate: edgeRate(g.speed), pitch: edgePitch(g.pitch), out: g.raw })),
-        concurrency: 8
-      },
-      ctx,
-      [a, mid]
+    // native Node client — no Python runtime needed for Edge voices
+    const results = await edgeSynthBatch(
+      edge.map((g) => ({ id: g.id, text: g.text, voice: g.voice, rate: edgeRate(g.speed), pitch: edgePitch(g.pitch), out: g.raw })),
+      { concurrency: 8, signal: ctx.signal, onProgress: (done, total) => ctx.progress(a + ((mid - a) * done) / total, `Edge-TTS ${done}/${total}`) }
     )
-    for (const x of r.results) if (!x.ok) errors.set(x.id, x.error ?? 'Edge-TTS failed')
+    for (const x of results) if (!x.ok) errors.set(x.id, x.error ?? 'Edge-TTS failed')
   }
   if (clone.length) {
     let done = 0

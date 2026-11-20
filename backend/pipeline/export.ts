@@ -1,8 +1,8 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Aspect, CaptionStyle, Range } from '../../shared/types'
+import type { Aspect, CaptionStyle, Clip } from '../../shared/types'
 import { serializeSrt, serializeVtt, type Cue } from '../../shared/srt'
-import { mapCuesToOutput, totalDuration } from '../../shared/ranges'
+import { clipSpeed, layoutClips, mapCuesToOutput, outputDuration, transitionDur } from '../../shared/ranges'
 import { toAss } from '../../shared/captions'
 import { runFfmpeg, probeMedia } from '../lib/ffmpeg'
 import { detectEncoder } from '../lib/checks'
@@ -24,9 +24,77 @@ export interface ExportPayload {
   captions: CaptionStyle
   captionLang: string
   burn: boolean
-  edit?: { clips: Range[]; aspect: Aspect; fitMode: 'crop' | 'pad' | 'blur'; fadeIn: number; fadeOut: number }
+  edit?: { clips: Clip[]; aspect: Aspect; fitMode: 'crop' | 'pad' | 'blur'; fadeIn: number; fadeOut: number }
   outputs: { mp4: boolean; srt: boolean; vtt: boolean; ass: boolean; dubWav?: string; instrumental?: string }
   encoder?: 'auto' | 'cpu'
+  /** source frame rate; transitions need every clip on the same constant rate */
+  fps?: number
+  /** "Mute Original": without a dub mix the video is exported silent instead of with the original audio */
+  muteOriginal?: boolean
+}
+
+/** atempo only takes 0.5..2 per instance, so chain it for 0.25x / 4x */
+function atempo(speed: number): string[] {
+  const out: string[] = []
+  let s = speed
+  while (s > 2.0001) (out.push('atempo=2'), (s /= 2))
+  while (s < 0.4999) (out.push('atempo=0.5'), (s /= 0.5))
+  if (Math.abs(s - 1) > 0.001) out.push(`atempo=${s.toFixed(4)}`)
+  return out
+}
+
+/** Per-clip video + audio filters (trim, speed, color, volume) and the joins between clips (concat or xfade). */
+export function clipGraph(clips: Clip[], hasAudio: boolean, fps: number): string[] {
+  const g: string[] = []
+  const n = clips.length
+  const placed = layoutClips(clips)
+  const anyTransition = clips.some((_, i) => transitionDur(clips, i) > 0)
+  const norm = anyTransition ? `,fps=${fps},settb=AVTB,format=yuv420p,setsar=1` : ''
+  g.push(`[0:V]split=${n}${clips.map((_, i) => `[sv${i}]`).join('')}`)
+  clips.forEach((c, i) => {
+    const sp = clipSpeed(c)
+    const col = c.color
+    const eq = col && (col.brightness !== 0 || col.contrast !== 1 || col.saturation !== 1)
+      ? `,eq=brightness=${col.brightness.toFixed(3)}:contrast=${col.contrast.toFixed(3)}:saturation=${col.saturation.toFixed(3)}`
+      : ''
+    const pts = sp === 1 ? 'PTS-STARTPTS' : `(PTS-STARTPTS)/${sp.toFixed(4)}`
+    g.push(`[sv${i}]trim=start=${c.start.toFixed(3)}:end=${c.end.toFixed(3)},setpts=${pts}${eq}${norm}[v${i}]`)
+  })
+  if (hasAudio) {
+    // pad first: a clip past the end of a short dub mix would otherwise get no audio and drift out of sync
+    g.push(`[1:a]apad,asplit=${n}${clips.map((_, i) => `[sa${i}]`).join('')}`)
+    clips.forEach((c, i) => {
+      const fx = [...atempo(clipSpeed(c)), ...(c.volume !== undefined && c.volume !== 1 ? [`volume=${c.volume.toFixed(3)}`] : [])]
+      const fmt = anyTransition ? ',aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo' : ''
+      g.push(`[sa${i}]atrim=start=${c.start.toFixed(3)}:end=${c.end.toFixed(3)},asetpts=PTS-STARTPTS${fx.length ? ',' + fx.join(',') : ''}${fmt}[a${i}]`)
+    })
+  }
+  if (!anyTransition) {
+    g.push(hasAudio
+      ? `${clips.map((_, i) => `[v${i}][a${i}]`).join('')}concat=n=${n}:v=1:a=1[vcat][acat]`
+      : `${clips.map((_, i) => `[v${i}]`).join('')}concat=n=${n}:v=1:a=0[vcat]`)
+    return g
+  }
+  // chain pairwise: xfade/acrossfade where a transition is set, plain concat elsewhere
+  let v = 'v0'
+  let a = 'a0'
+  for (let i = 1; i < n; i++) {
+    const d = transitionDur(clips, i - 1)
+    const last = i === n - 1
+    const vo = last ? 'vcat' : `xv${i}`
+    const ao = last ? 'acat' : `xa${i}`
+    if (d > 0) {
+      g.push(`[${v}][v${i}]xfade=transition=${clips[i - 1].transition!.type}:duration=${d.toFixed(3)}:offset=${placed[i].outStart.toFixed(3)}[${vo}]`)
+      if (hasAudio) g.push(`[${a}][a${i}]acrossfade=d=${d.toFixed(3)}[${ao}]`)
+    } else if (hasAudio) {
+      g.push(`[${v}][${a}][v${i}][a${i}]concat=n=2:v=1:a=1[${vo}][${ao}]`)
+    } else {
+      g.push(`[${v}][v${i}]concat=n=2:v=1:a=0[${vo}]`)
+    }
+    v = vo
+    a = ao
+  }
+  return g
 }
 
 const even = (n: number) => Math.max(2, Math.round(n / 2) * 2)
@@ -56,8 +124,8 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
   mkdirSync(p.outDir, { recursive: true })
   const files: string[] = []
   const editOn = !!p.edit && (p.edit.clips.length > 0 || p.edit.aspect !== 'source' || p.edit.fadeIn > 0 || p.edit.fadeOut > 0)
-  const clips: Range[] = editOn && p.edit!.clips.length ? p.edit!.clips : [{ start: 0, end: p.durationSec }]
-  const outDur = Math.max(0.01, editOn ? totalDuration(clips) : p.durationSec)
+  const clips: Clip[] = editOn && p.edit!.clips.length ? p.edit!.clips : [{ id: 'all', start: 0, end: p.durationSec }]
+  const outDur = Math.max(0.01, editOn ? outputDuration(clips) : p.durationSec)
   const cues = editOn ? mapCuesToOutput(p.cues, clips) : p.cues
   const size = outputSize(editOn ? p.edit!.aspect : 'source', p.width, p.height)
   // Windows MAX_PATH is 260; leave room for the longest suffix we write ("_instrumental.wav").
@@ -83,7 +151,7 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
   const hasMixAudio = !!(p.mixPath && existsSync(p.mixPath))
   const audioIn = hasMixAudio ? p.mixPath! : p.videoPath
   let hasAudio = hasMixAudio
-  if (!hasAudio) {
+  if (!hasAudio && !p.muteOriginal) {
     try {
       const info = await probeMedia(audioIn)
       hasAudio = !!info.audio
@@ -129,21 +197,8 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
   const g: string[] = []
   const n = clips.length
   if (editOn && n > 0) {
-    g.push(`[0:V]split=${n}${clips.map((_, i) => `[sv${i}]`).join('')}`)
-    clips.forEach((c, i) => {
-      g.push(`[sv${i}]trim=start=${c.start.toFixed(3)}:end=${c.end.toFixed(3)},setpts=PTS-STARTPTS[v${i}]`)
-    })
-    if (hasAudio) {
-      // pad first: a clip past the end of a short dub mix would otherwise get no audio and drift out of sync
-      g.push(`[1:a]apad,asplit=${n}${clips.map((_, i) => `[sa${i}]`).join('')}`)
-      clips.forEach((c, i) => {
-        g.push(`[sa${i}]atrim=start=${c.start.toFixed(3)}:end=${c.end.toFixed(3)},asetpts=PTS-STARTPTS[a${i}]`)
-      })
-      g.push(`${clips.map((_, i) => `[v${i}][a${i}]`).join('')}concat=n=${n}:v=1:a=1[vcat][acat]`)
-    } else {
-      g.push(`${clips.map((_, i) => `[v${i}]`).join('')}concat=n=${n}:v=1:a=0[vcat]`)
-      g.push(`anullsrc=channel_layout=stereo:sample_rate=44100,atrim=0:${outDur.toFixed(3)}[acat]`)
-    }
+    g.push(...clipGraph(clips, hasAudio, p.fps && p.fps > 0 ? p.fps : 30))
+    if (!hasAudio) g.push(`anullsrc=channel_layout=stereo:sample_rate=44100,atrim=0:${outDur.toFixed(3)}[acat]`)
   } else {
     g.push('[0:V]null[vcat]')
     if (hasAudio) {

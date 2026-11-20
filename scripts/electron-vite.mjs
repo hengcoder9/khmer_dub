@@ -6,6 +6,15 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 delete process.env.ELECTRON_RUN_AS_NODE
+const appData = process.env.APPDATA || (process.env.USERPROFILE ? join(process.env.USERPROFILE, 'AppData', 'Roaming') : '')
+if (appData) {
+  const userDataDir = join(appData, 'KhmerDub Studio')
+  const existingArgs = process.env.ELECTRON_CLI_ARGS ? JSON.parse(process.env.ELECTRON_CLI_ARGS) : []
+  if (!existingArgs.some((a) => a.startsWith('--user-data-dir='))) {
+    existingArgs.push(`--user-data-dir=${userDataDir}`)
+  }
+  process.env.ELECTRON_CLI_ARGS = JSON.stringify(existingArgs)
+}
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const cli = join(root, 'node_modules', 'electron-vite', 'bin', 'electron-vite.js')
 if (!existsSync(cli)) {

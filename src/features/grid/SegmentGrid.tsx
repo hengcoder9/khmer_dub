@@ -164,7 +164,7 @@ const Row = memo(function Row({ s, index, selected, focused, editing, playing, c
         value={s.voiceId ?? ''}
         onClick={(e) => e.stopPropagation()}
         onChange={(e) => patchSegments(epId, [s.id], { voiceId: e.target.value || undefined, audioPath: undefined })}
-        title={voiceFor(s, cast)}
+        title={voiceFor(s, cast, useProject.getState().project?.settings.targetLang)}
       >
         <option value="">{t('grid.actorVoice', 'Actor voice')}</option>
         {voices.map((v) => (

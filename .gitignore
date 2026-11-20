@@ -4,3 +4,5 @@ dist/
 *.log
 resources/bin/*.exe
 resources/python/
+__pycache__/
+*.pyc

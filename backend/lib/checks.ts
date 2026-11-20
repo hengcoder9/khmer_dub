@@ -4,6 +4,7 @@ import type { CheckDef, CheckResult, CheckStatus } from '../../shared/types'
 import { run, runFfmpeg } from './ffmpeg'
 import { binPath, pythonPath, userDataDir } from './paths'
 import { keyPool } from './keys'
+import { edgeSynthesize } from './edgeTts'
 import { testKey } from './llm'
 import { cudaInfo, engineStatus, hasNvidia } from '../pipeline/pysetup'
 
@@ -121,6 +122,17 @@ async function internetCheck(): Promise<Outcome> {
   }
 }
 
+/** Real round-trip: synthesizes one short word with the built-in Node client. */
+async function edgeCheck(): Promise<Outcome> {
+  const t0 = Date.now()
+  try {
+    const audio = await edgeSynthesize('OK', { voice: 'en-US-EmmaMultilingualNeural', timeoutMs: 15_000 })
+    return { status: 'ok', detail: `Built-in client working (${audio.length} bytes in ${Date.now() - t0} ms)` }
+  } catch (e) {
+    return { status: 'warn', detail: `Edge-TTS unreachable: ${(e as Error).message}` }
+  }
+}
+
 const CHECKS: Check[] = [
   { id: 'backend', label: 'Backend server', run: async () => ({ status: 'ok', detail: `Running (pid ${process.pid}, Node ${process.versions.node})` }) },
   { id: 'ffmpeg', label: 'ffmpeg', run: () => versionOf('ffmpeg') },
@@ -138,7 +150,7 @@ const CHECKS: Check[] = [
   { id: 'python', label: 'Python', run: pythonCheck },
   { id: 'disk', label: 'Disk space', run: diskCheck },
   { id: 'internet', label: 'Internet', run: internetCheck },
-  { id: 'edgeTts', label: 'Edge-TTS', run: engineCheck('core', 'Edge-TTS') },
+  { id: 'edgeTts', label: 'Edge-TTS', run: edgeCheck },
   { id: 'whisper', label: 'faster-whisper', run: engineCheck('whisper', 'faster-whisper') },
   { id: 'demucs', label: 'Demucs', run: engineCheck('demucs', 'Demucs') },
   { id: 'diarization', label: 'Speaker diarization', run: engineCheck('diarization', 'Speaker detection') },

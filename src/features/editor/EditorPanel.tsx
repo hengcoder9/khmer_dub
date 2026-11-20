@@ -20,7 +20,7 @@ import {
   X
 } from 'lucide-react'
 import type { Aspect, EditState, Episode } from '@shared/types'
-import { addRemoved, effectiveClips, fullClip, moveClip, normalize, restoreRange, splitClipAt, totalDuration } from '@shared/ranges'
+import { addRemoved, effectiveClips, fullClip, moveClip, normalize, outputDuration, restoreRange, splitClipAt, totalDuration } from '@shared/ranges'
 import { AI_EDIT_PRESETS, findFillers, removedLineIds, silenceCuts } from '@shared/editor'
 import { Button } from '@/components/ui/button'
 import { Slider, Switch, Toggle } from '@/components/ui/controls'
@@ -82,7 +82,7 @@ function EditorBody({ ep }: { ep: Episode }) {
   const lang = useSettings((s) => s.lang)
   const edit = ep.edit
   const clips = useMemo(() => effectiveClips(edit), [edit])
-  const outDur = edit.enabled ? totalDuration(clips) : ep.durationSec
+  const outDur = edit.enabled ? outputDuration(clips) : ep.durationSec
 
   const setEdit = (fn: (e: EditState) => EditState, undo = true) =>
     updateEpisode(ep.id, (x) => {

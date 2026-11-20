@@ -136,8 +136,27 @@ export interface Range {
   end: number
 }
 
+/** ffmpeg xfade names; preview approximates them with a dip */
+export type TransitionType = 'fade' | 'fadeblack' | 'fadewhite' | 'dissolve' | 'slideleft' | 'slideright' | 'wipeleft' | 'wiperight' | 'circleopen' | 'zoomin'
+
+export interface ClipColor {
+  /** -1..1, 0 = unchanged */
+  brightness: number
+  /** 0..2, 1 = unchanged */
+  contrast: number
+  /** 0..3, 1 = unchanged */
+  saturation: number
+}
+
 export interface Clip extends Range {
   id: string
+  /** playback speed, 0.25..4 (default 1) */
+  speed?: number
+  /** audio gain for this clip, 0..2 (default 1) */
+  volume?: number
+  color?: ClipColor
+  /** transition from this clip into the next one (overlaps both by `duration`) */
+  transition?: { type: TransitionType; duration: number }
 }
 
 export type Aspect = 'source' | '16:9' | '9:16' | '1:1' | '4:5'
@@ -212,6 +231,8 @@ export interface ProjectSettings {
   keepOriginal: boolean
   origVolume: number
   muteOriginal: boolean
+  /** original sound off while a dub line (A1) speaks, back on in the gaps (default on; missing = on) */
+  autoOriginal?: boolean
   reverb: boolean
   globalSpeed: number
   globalPitch: number

@@ -106,3 +106,73 @@ export function autoMatchVoices(cast: Actor[], voices: Voice[], locale?: string)
   }
   return cast.map((a) => ({ ...a, voiceId: assigned.get(a.id) ?? a.voiceId }))
 }
+
+// ───────── voice variants ─────────
+
+/** A voice id may carry a variant: "edge:km-KH-PisethNeural#-14,0.95" = base voice, pitch offset (Hz), speed factor. */
+export function parseVoiceVariant(voice: string): { base: string; pitch: number; rate: number } {
+  const [base, fx] = voice.split('#', 2)
+  const [p, r] = (fx ?? '').split(',')
+  const pitch = Number(p)
+  const rate = Number(r)
+  return { base, pitch: Number.isFinite(pitch) ? pitch : 0, rate: Number.isFinite(rate) && rate > 0 ? rate : 1 }
+}
+
+/** Character voices made from one base voice (Khmer has only one male and one female Edge voice). */
+export const VOICE_VARIANTS: Record<Gender, Array<[string, number, number]>> = {
+  male: [
+    ['Deep', -14, 0.95],
+    ['Old', -24, 0.9],
+    ['Young', 12, 1.05],
+    ['Boy', 30, 1.08]
+  ],
+  female: [
+    ['Soft', -8, 0.95],
+    ['Mature', -16, 0.92],
+    ['Young', 14, 1.04],
+    ['Girl', 30, 1.08]
+  ],
+  unknown: []
+}
+
+/** Base voice first, then its variants, so auto-match gives every actor a different sound. */
+export function withVariants(v: Voice): Voice[] {
+  return [
+    v,
+    ...VOICE_VARIANTS[v.gender].map(([label, pitch, rate]) => ({ ...v, id: `${v.id}#${pitch},${rate}`, name: `${v.name.replace(/ \(.*\)$/, '')} – ${label}${v.name.match(/ \(.*\)$/)?.[0] ?? ''}` }))
+  ]
+}
+
+// ───────── tidy cast ─────────
+
+/**
+ * Speaker detection splits one person into many actors. Keep the actors that speak enough (at most maxActors),
+ * and move every small actor's lines to the closest kept actor: same gender first, then by voice embedding.
+ * Returns the smaller cast and old → new actor ids.
+ */
+export function tidyCast(cast: Actor[], segments: Segment[], maxActors = 10): { cast: Actor[]; remap: Record<string, string> } {
+  const count = new Map<string, number>()
+  for (const s of segments) if (s.actorId) count.set(s.actorId, (count.get(s.actorId) ?? 0) + 1)
+  const total = [...count.values()].reduce((a, b) => a + b, 0)
+  const minLines = Math.max(3, Math.ceil(total * 0.03))
+  const ranked = [...cast].sort((a, b) => (count.get(b.id) ?? 0) - (count.get(a.id) ?? 0))
+  const keep = ranked.filter((a, i) => i < maxActors && (count.get(a.id) ?? 0) >= minLines)
+  if (!keep.length && ranked.length) keep.push(ranked[0])
+  const keepIds = new Set(keep.map((a) => a.id))
+  const remap: Record<string, string> = {}
+  for (const a of cast) {
+    if (keepIds.has(a.id)) continue
+    const same = keep.filter((k) => k.gender === a.gender)
+    const pool = same.length ? same : keep
+    let best = pool[0]
+    if (a.embedding) {
+      let bestSim = -2
+      for (const k of pool) {
+        const sim = k.embedding ? cosine(a.embedding, k.embedding) : -1
+        if (sim > bestSim) (bestSim = sim), (best = k)
+      }
+    }
+    if (best) remap[a.id] = best.id
+  }
+  return { cast: cast.filter((a) => keepIds.has(a.id)), remap }
+}

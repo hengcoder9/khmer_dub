@@ -13,7 +13,10 @@ import { post } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import {
   appendLog,
+  assignDefaultActor,
   autoMatchCast,
+  fillVoices,
+  staleLines,
   diarize,
   exportEpisode,
   generateVoices,
@@ -43,7 +46,8 @@ export function AutomateDialog({ onClose }: { onClose: () => void }) {
   const project = useProject((s) => s.project!)
   const dir = useProject((s) => s.dir!)
   const jobs = useJobs((s) => s.jobs)
-  const [picked, setPicked] = useState<Set<string>>(() => new Set(project.episodes.filter((e) => e.videoPath && e.status !== 'exported').map((e) => e.id)))
+  // every episode with a video (re-running an exported one is allowed)
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(project.episodes.filter((e) => e.videoPath).map((e) => e.id)))
   const [preset, setPreset] = useState<Preset>({
     separate: true,
     engine: project.settings.sttEngine,
@@ -104,11 +108,15 @@ export function AutomateDialog({ onClose }: { onClose: () => void }) {
     log(`start: ${order.map((e) => e.label).join(', ')} preset=${JSON.stringify(preset)}`)
     mutate((p) => ({ ...p, settings: { ...p.settings, sttEngine: preset.engine, translator: preset.translator, burnSubtitles: preset.burn } }), { undo: false })
 
-    for (const e of order) {
+    // nice-to-have steps: a failure is a warning, the episode still gets dubbed
+    const OPTIONAL: StepId[] = ['separate', 'diarize', 'cast']
+    const firstLine = (err: unknown) => (err as Error).message.split(/\r?\n/)[0]
+
+    const runEpisode = async (e: (typeof order)[number], first: boolean) => {
       const mark = (s: StepId, st: StepState) => setStatus((x) => ({ ...x, [e.id]: { ...x[e.id], [s]: st } }))
-      setActiveEpisode(e.id)
+      if (first) setActiveEpisode(e.id)
       try {
-        for (const [id, , on] of steps) {
+        for (const [id, label, on] of steps) {
           await waitIfPaused()
           if (!on) {
             mark(id, 'skip')
@@ -117,21 +125,43 @@ export function AutomateDialog({ onClose }: { onClose: () => void }) {
           mark(id, 'run')
           log(`${e.label} ${id}…`)
           const cur = () => useProject.getState().project!.episodes.find((x) => x.id === e.id)!
+          try {
           switch (id) {
             case 'separate':
               if (!cur().stems.instrumental) await separateVocals(e.id)
               break
             case 'transcribe':
-              if (!cur().segments.length) await transcribe(preset.engine, e.id, { chain: false, ask: false })
+              // also redo lines that belong to a different (longer) video
+              if (!cur().segments.length || staleLines(cur())) {
+                try {
+                  await transcribe(preset.engine, e.id, { chain: false, ask: false })
+                } catch (err) {
+                  // e.g. Gemini out of quota: Whisper runs on this PC
+                  if (preset.engine === 'whisper' || ctl.current.stop) throw err
+                  toast.warning(`${e.label}: ${preset.engine} failed (${firstLine(err)}) — using Whisper`)
+                  log(`${e.label} transcribe fallback → whisper: ${firstLine(err)}`)
+                  await transcribe('whisper', e.id, { chain: false, ask: false })
+                }
+              }
               break
             case 'diarize':
               await diarize(e.id)
               break
             case 'translate':
-              await translate(e.id, undefined, preset.translator)
+              try {
+                await translate(e.id, undefined, preset.translator)
+              } catch (err) {
+                // bad key / no quota: the offline translator needs neither
+                if (preset.translator === 'offline' || ctl.current.stop) throw err
+                toast.warning(`${e.label}: ${preset.translator} failed (${firstLine(err)}) — translating offline`)
+                log(`${e.label} translate fallback → offline: ${firstLine(err)}`)
+                await translate(e.id, undefined, 'offline')
+              }
               break
             case 'cast':
               await autoMatchCast()
+              assignDefaultActor(e.id)
+              await fillVoices()
               break
             case 'tts':
               await generateVoices(undefined, e.id)
@@ -156,21 +186,38 @@ export function AutomateDialog({ onClose }: { onClose: () => void }) {
               )
               break
           }
+          } catch (err) {
+            if (!OPTIONAL.includes(id) || ctl.current.stop) throw err
+            mark(id, 'error')
+            log(`${e.label} ${id} skipped: ${firstLine(err)}`)
+            toast.warning(`${e.label}: ${label} failed — skipped (${firstLine(err)})`)
+            continue
+          }
           mark(id, 'done')
           log(`${e.label} ${id} done`)
         }
       } catch (err) {
-        const msg = (err as Error).message
+        const msg = firstLine(err)
         setStatus((x) => {
           const cur = x[e.id] ?? {}
           const runningStep = (Object.keys(cur) as StepId[]).find((k) => cur[k] === 'run')
           return runningStep ? { ...x, [e.id]: { ...cur, [runningStep]: 'error' } } : x
         })
         log(`${e.label} ERROR: ${msg}`)
-        if (ctl.current.stop) break
-        toast.error(`${e.label}: ${msg}`)
+        if (!ctl.current.stop) toast.error(`${e.label}: ${msg}`)
       }
     }
+
+    // two episodes in flight: the next one's GPU steps (Remove BGM, Whisper) overlap this one's voices + export;
+    // the backend job lanes keep each kind of work in order
+    let next = 0
+    const lane = async () => {
+      while (next < order.length && !ctl.current.stop) {
+        const i = next++
+        await runEpisode(order[i], i === 0)
+      }
+    }
+    await Promise.all([lane(), lane()])
     log('finished')
     setRunning(false)
     toast.success(t('auto.finished', 'Automate finished — log saved to automate.log'))

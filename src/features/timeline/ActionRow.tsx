@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Captions, ChevronDown, Gauge, Languages, Loader2, Mic, ScanText, Sparkles, TriangleAlert, Volume1, Clock4, Merge } from 'lucide-react'
 import type { SttEngine, Translator } from '@shared/types'
@@ -6,8 +6,9 @@ import { LANG_NAMES } from '@shared/translate'
 import { Button } from '@/components/ui/button'
 import { DropdownContent, DropdownItem, DropdownLabel, DropdownMenu, DropdownSeparator, DropdownTrigger, Select, Toggle } from '@/components/ui/controls'
 import { mutate, useActiveEpisode, useProject } from '@/store/project'
-import { generateVoices, listenReadSrt, mixEpisode, notify, readScreen, transcribe, translate } from '@/lib/pipeline'
+import { generateVoices, syncDefaultVoices, listenReadSrt, remakeLines, staleLines, mixEpisode, notify, readScreen, transcribe, translate } from '@/lib/pipeline'
 import { toast } from 'sonner'
+import { useSettings } from '@/store/settings'
 
 export function ActionRow() {
   const { t } = useTranslation()
@@ -15,6 +16,12 @@ export function ActionRow() {
   const s = useProject((st) => st.project?.settings)
   const selected = useProject((st) => st.selected)
   const [busy, setBusy] = useState<string | null>(null)
+  const autoOn = useSettings((st) => st.autoLines)
+  const lang = s?.targetLang
+  // default voices follow the target language
+  useEffect(() => {
+    if (lang) void syncDefaultVoices(lang)
+  }, [lang])
   if (!ep || !s) return null
   const set = (patch: Partial<typeof s>) => mutate((p) => ({ ...p, settings: { ...p.settings, ...patch } }), { undo: false })
   const warn = ep.segments.filter((x) => x.fitWarning)
@@ -64,6 +71,18 @@ export function ActionRow() {
         onChange={(v) => set({ maxSpeed: Number(v) })}
         options={[1.2, 1.3, 1.4, 1.5, 1.6, 1.8, 2].map((v) => ({ value: String(v), label: `≤${v}×` }))}
       />
+      {staleLines(ep) > 0 && (
+        <button
+          className="flex h-8 items-center gap-1 rounded-md border border-destructive/60 bg-destructive/10 px-2 text-xs text-destructive"
+          disabled={!!busy}
+          onClick={() => {
+            if (confirm(t('ar.staleConfirm', 'These lines are from a different video. Replace all {{n}} lines with new ones made from this video?', { n: ep.segments.length }))) void run('lr', () => remakeLines())()
+          }}
+          title={t('ar.staleHint', 'Lines run past the end of this video — they belong to a different video')}
+        >
+          <TriangleAlert className="size-3.5" /> {t('ar.stale', '{{n}} lines past video end — make new lines', { n: staleLines(ep) })}
+        </button>
+      )}
       {warn.length > 0 && (
         <button
           className="flex h-8 items-center gap-1 rounded-md border border-warning/50 bg-warning/10 px-2 text-xs text-warning"
@@ -76,9 +95,18 @@ export function ActionRow() {
       <Toggle on={s.syncEnd} onClick={() => set({ syncEnd: !s.syncEnd })} title={t('ar.syncEndHint', 'Let a line run on into the silence before the next one')}>
         <Clock4 /> {t('ar.syncEnd', 'Sync End')}
       </Toggle>
-      <Toggle on={s.ducking} onClick={() => set({ ducking: !s.ducking })} title={t('ar.duckingHint', 'Lower the background while dub voices speak')}>
-        <Volume1 /> {t('ar.ducking', 'Ducking')} {s.ducking ? 'ON' : 'OFF'}
+      <Toggle
+        on={s.autoOriginal ?? true}
+        onClick={() => set({ autoOriginal: !(s.autoOriginal ?? true) })}
+        title={t('ar.autoOrigHint', 'Auto: original sound is muted while a dub line (A1) speaks and comes back on where there is no dub')}
+      >
+        <Volume1 /> {t('ar.autoOrig', 'Auto ORIG')} {s.autoOriginal ?? true ? 'ON' : 'OFF'}
       </Toggle>
+      {!(s.autoOriginal ?? true) && (
+        <Toggle on={s.ducking} onClick={() => set({ ducking: !s.ducking })} title={t('ar.duckingHint', 'Lower the background while dub voices speak')}>
+          <Volume1 /> {t('ar.ducking', 'Ducking')} {s.ducking ? 'ON' : 'OFF'}
+        </Toggle>
+      )}
       <Toggle on={s.keepOriginal} onClick={() => set({ keepOriginal: !s.keepOriginal })} title={t('ar.origHint', 'Keep the original voices quietly under the dub instead of the instrumental')}>
         ORIG {Math.round(s.origVolume * 100)}%
       </Toggle>
@@ -93,6 +121,13 @@ export function ActionRow() {
       >
         {spin('lr', <Captions />)} {t('ar.lr', 'Listen + Read → SRT')}
       </Button>
+      <Toggle
+        on={autoOn}
+        onClick={() => useSettings.getState().set({ autoLines: !autoOn })}
+        title={t('ar.autoHint', 'Make dubbing lines automatically (Listen + Read, then translate) as soon as a video is imported')}
+      >
+        <Sparkles /> {t('ar.auto', 'Auto')}
+      </Toggle>
 
       <Button variant="outline" size="sm" onClick={run('ocr', () => readScreen())} disabled={!!busy || !ep.videoPath} title={t('ar.ocrHint', 'Read hard-coded subtitles from the video with Gemini vision')}>
         {spin('ocr', <ScanText />)} {t('ar.ocr', 'Read Screen')}

@@ -9,19 +9,21 @@ import { EditorPanel } from '@/features/editor/EditorPanel'
 import { Timeline } from '@/features/timeline/Timeline'
 import { ActionRow } from '@/features/timeline/ActionRow'
 import { useUi } from '@/store/ui'
+import { useSettings } from '@/store/settings'
 import { cn } from '@/lib/utils'
 
 export function Layout() {
   const { t } = useTranslation()
   const tab = useUi((s) => s.centerTab)
   const set = useUi((s) => s.set)
+  const big = useSettings((s) => s.bigPlayer)
 
   return (
     <div className="flex h-full flex-col">
       <TopBar />
 
       <div className="flex min-h-0 flex-1">
-        <aside className="flex w-[440px] shrink-0 flex-col gap-3 overflow-y-auto border-r bg-card p-3">
+        <aside className={cn('flex shrink-0 flex-col gap-3 overflow-y-auto border-r bg-card p-3 transition-[width]', big ? 'w-1/2' : 'w-[440px]')}>
           <VideoPlayer />
           <ToolButtons />
         </aside>
