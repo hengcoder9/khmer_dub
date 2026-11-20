@@ -59,7 +59,11 @@ async function main() {
   await app.register(projectRoutes)
   await app.register(apiRoutes)
 
-  await app.listen({ host: '127.0.0.1', port: Number(process.env.KD_PORT ?? 0) })
+  // Hosting platforms inject PORT and route traffic from outside, so bind all interfaces there.
+  // Desktop (no PORT): loopback only, random free port.
+  const port0 = Number(process.env.PORT || process.env.KD_PORT || 0)
+  const host = process.env.HOST || (process.env.PORT ? '0.0.0.0' : '127.0.0.1')
+  await app.listen({ host, port: port0 })
   const { port } = app.server.address() as AddressInfo
 
   if (parentPort) {

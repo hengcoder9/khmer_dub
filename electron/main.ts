@@ -26,7 +26,7 @@ function startBackend(): void {
   backendInfo = null
   // utilityProcess rejects undefined values, so copy only defined strings
   const env: Record<string, string> = {}
-  for (const [k, v] of Object.entries(process.env)) if (typeof v === 'string' && k !== 'ELECTRON_RUN_AS_NODE') env[k] = v
+  for (const [k, v] of Object.entries(process.env)) if (typeof v === 'string' && !['ELECTRON_RUN_AS_NODE', 'PORT', 'HOST'].includes(k)) env[k] = v
   Object.assign(env, {
     KD_TOKEN: token,
     KD_RESOURCES: resourcesDir(),
