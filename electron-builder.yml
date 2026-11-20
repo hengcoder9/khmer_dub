@@ -29,5 +29,6 @@ nsis:
 # Auto-update: publish releases to your GitHub repo (set owner/repo, then `npm run dist -- --publish always` with GH_TOKEN set)
 publish:
   provider: github
-  owner: YOUR_GITHUB_USERNAME
-  repo: khmerdub-studio
+  owner: hengcoder9
+  repo: khmer_dub
+  releaseType: release
