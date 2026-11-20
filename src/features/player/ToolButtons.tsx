@@ -1,0 +1,114 @@
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import { AudioWaveform, Bot, Captions, FileDown, FileUp, Loader2, Music, Video, VolumeX, Wand2, type LucideIcon } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { mutate, useActiveEpisode, useProject } from '@/store/project'
+import { useUi } from '@/store/ui'
+import { exportSubtitles, importBgm, importSubtitles, importVideo, importVoiceTrack, notify, separateVocals } from '@/lib/pipeline'
+import { DropdownContent, DropdownItem, DropdownMenu, DropdownTrigger } from '@/components/ui/controls'
+
+interface Tool {
+  key: string
+  icon: LucideIcon
+  label: string
+  run?: () => Promise<unknown> | void
+  active?: boolean
+  needsVideo?: boolean
+  menu?: React.ReactNode
+}
+
+export function ToolButtons() {
+  const { t } = useTranslation()
+  const ep = useActiveEpisode()
+  const muteOriginal = useProject((s) => s.project?.settings.muteOriginal ?? false)
+  const burn = useProject((s) => s.project?.settings.burnSubtitles ?? false)
+  const setUi = useUi((s) => s.set)
+  const [busy, setBusy] = useState<string | null>(null)
+
+  const wrap = (key: string, fn: () => Promise<unknown> | void) => async () => {
+    setBusy(key)
+    try {
+      await fn()
+    } catch (e) {
+      notify(e)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const tools: Tool[] = [
+    { key: 'importVideo', icon: Video, label: t('tools.importVideo', 'Import Video'), run: () => importVideo(), active: !ep?.videoPath },
+    { key: 'importBgm', icon: Music, label: t('tools.importBgm', 'Import BGM'), run: () => importBgm(), active: !!ep?.edit.bgm },
+    { key: 'importAiVoice', icon: AudioWaveform, label: t('tools.importAiVoice', 'Import AI Voice'), run: () => importVoiceTrack(), active: !!ep?.voiceTrack },
+    { key: 'separateVocals', icon: Wand2, label: t('tools.separateVocals', 'Remove BGM'), run: () => separateVocals(), active: !!ep?.stems.instrumental, needsVideo: true },
+    {
+      key: 'muteOriginal',
+      icon: VolumeX,
+      label: t('tools.muteOriginal', 'Mute Original'),
+      active: muteOriginal,
+      run: () => {
+        mutate((p) => ({ ...p, settings: { ...p.settings, muteOriginal: !p.settings.muteOriginal } }), { undo: false })
+        toast.info(!muteOriginal ? t('tools.mutedOn', 'Original audio will be muted in the mix') : t('tools.mutedOff', 'Original/instrumental audio is back in the mix'))
+      }
+    },
+    {
+      key: 'exportSrt',
+      icon: FileDown,
+      label: t('tools.exportSrt', 'Export SRT'),
+      menu: (
+        <>
+          <DropdownItem onSelect={() => exportSubtitles('srt').catch(notify)}>SRT</DropdownItem>
+          <DropdownItem onSelect={() => exportSubtitles('vtt').catch(notify)}>WebVTT</DropdownItem>
+        </>
+      )
+    },
+    { key: 'importSrt', icon: FileUp, label: t('tools.importSrt', 'Import SRT/VTT'), run: () => importSubtitles() },
+    {
+      key: 'burnSubtitles',
+      icon: Captions,
+      label: t('tools.burnSubtitles', 'Burn Subtitles'),
+      active: burn,
+      run: () => {
+        mutate((p) => ({ ...p, settings: { ...p.settings, burnSubtitles: !p.settings.burnSubtitles } }), { undo: false })
+        if (!burn) setUi({ centerTab: 'editor' })
+        toast.info(!burn ? t('tools.burnOn', 'Subtitles will be burned into the exported video — style them in AI Video Editor → Captions') : t('tools.burnOff', 'Subtitles will not be burned in'))
+      }
+    },
+    { key: 'automate', icon: Bot, label: t('tools.automate', 'Automate'), run: () => setUi({ dialog: 'automate' }) }
+  ]
+
+  const cls = (active?: boolean) =>
+    cn(
+      'flex h-16 w-full flex-col items-center justify-center gap-1 rounded-md border px-1 text-xs transition-colors',
+      'hover:border-primary/60 hover:bg-accent disabled:pointer-events-none disabled:opacity-40',
+      active && 'border-primary/50 bg-primary/10 text-primary'
+    )
+
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {tools.map(({ key, icon: Icon, label, run, active, needsVideo, menu }) => {
+        const disabled = !!busy || (needsVideo && !ep?.videoPath)
+        const icon = busy === key ? <Loader2 className="size-5 animate-spin" /> : <Icon className="size-5" />
+        if (menu)
+          return (
+            <DropdownMenu key={key}>
+              <DropdownTrigger asChild>
+                <button className={cls(active)} disabled={disabled} title={label}>
+                  {icon}
+                  <span className="line-clamp-1 leading-tight">{label}</span>
+                </button>
+              </DropdownTrigger>
+              <DropdownContent>{menu}</DropdownContent>
+            </DropdownMenu>
+          )
+        return (
+          <button key={key} disabled={disabled} onClick={run && wrap(key, run)} className={cls(active)} title={label}>
+            {icon}
+            <span className="line-clamp-1 leading-tight">{label}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}

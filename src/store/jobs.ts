@@ -1,0 +1,69 @@
+import { create } from 'zustand'
+import type { JobInfo, ServerEvent } from '@shared/types'
+import { api, backend } from '@/lib/api'
+
+interface JobsState {
+  jobs: Record<string, JobInfo>
+  keys: { total: number; ready: number }
+  connected: boolean
+}
+
+export const useJobs = create<JobsState>()(() => ({ jobs: {}, keys: { total: 0, ready: 0 }, connected: false }))
+
+type Waiter = { resolve: (j: JobInfo) => void }
+const waiters = new Map<string, Waiter[]>()
+
+function onJob(job: JobInfo) {
+  useJobs.setState((s) => ({ jobs: { ...s.jobs, [job.id]: job } }))
+  if (['done', 'error', 'canceled'].includes(job.status)) {
+    for (const w of waiters.get(job.id) ?? []) w.resolve(job)
+    waiters.delete(job.id)
+  }
+}
+
+let ws: WebSocket | null = null
+export async function connectEvents() {
+  if (ws && ws.readyState <= 1) return
+  const b = await backend()
+  ws = new WebSocket(`ws://127.0.0.1:${b.port}/ws?token=${b.token}`)
+  ws.onopen = async () => {
+    useJobs.setState({ connected: true })
+    // catch up on anything that finished while disconnected
+    const list = await api<JobInfo[]>('/jobs').catch(() => [])
+    list.forEach(onJob)
+  }
+  ws.onmessage = (m) => {
+    const ev = JSON.parse(m.data as string) as ServerEvent
+    if (ev.type === 'job') onJob(ev.job)
+    else if (ev.type === 'keys') useJobs.setState({ keys: { total: ev.total, ready: ev.ready } })
+  }
+  ws.onclose = () => {
+    useJobs.setState({ connected: false })
+    setTimeout(() => connectEvents().catch(() => {}), 1500)
+  }
+}
+
+export class JobError extends Error {
+  constructor(public job: JobInfo) {
+    super(job.status === 'canceled' ? 'Canceled' : (job.error ?? 'Job failed'))
+  }
+}
+
+/** Queue a backend job and resolve with its result when it finishes (rejects on error/cancel). */
+export async function runJob<T>(type: string, payload: unknown, episodeId?: string): Promise<T> {
+  await connectEvents()
+  const job = await api<JobInfo>('/jobs', { method: 'POST', body: JSON.stringify({ type, payload, episodeId }) })
+  onJob(job)
+  const done = await new Promise<JobInfo>((resolve) => {
+    const cur = useJobs.getState().jobs[job.id]
+    if (cur && ['done', 'error', 'canceled'].includes(cur.status)) return resolve(cur)
+    waiters.set(job.id, [...(waiters.get(job.id) ?? []), { resolve }])
+  })
+  if (done.status !== 'done') throw new JobError(done)
+  return done.result as T
+}
+
+export const cancelJob = (id: string) => api(`/jobs/${id}/cancel`, { method: 'POST', body: '{}' })
+
+export const activeJobs = (jobs: Record<string, JobInfo>) =>
+  Object.values(jobs).filter((j) => j.status === 'running' || j.status === 'queued')

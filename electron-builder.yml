@@ -1,0 +1,33 @@
+appId: com.khmerdub.studio
+productName: KhmerDub Studio
+directories:
+  buildResources: build
+  output: dist
+files:
+  - out/**
+  - package.json
+extraResources:
+  - from: resources/bin
+    to: bin
+    filter: ['*.exe']
+  - from: resources/fonts
+    to: fonts
+  - from: resources/icon.png
+    to: icon.png
+  - from: workers
+    to: workers
+    filter: ['*.py', 'requirements.txt']
+win:
+  target: nsis
+  icon: build/icon.png
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: KhmerDub Studio
+# Auto-update: publish releases to your GitHub repo (set owner/repo, then `npm run dist -- --publish always` with GH_TOKEN set)
+publish:
+  provider: github
+  owner: YOUR_GITHUB_USERNAME
+  repo: khmerdub-studio

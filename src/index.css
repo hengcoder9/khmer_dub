@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 20% 97%;
+    --foreground: 222 30% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 30% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 30% 12%;
+    --primary: 172 72% 34%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 16% 92%;
+    --secondary-foreground: 222 30% 18%;
+    --muted: 220 16% 94%;
+    --muted-foreground: 220 9% 44%;
+    --accent: 220 16% 90%;
+    --accent-foreground: 222 30% 12%;
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 64% 38%;
+    --warning: 34 92% 46%;
+    --border: 220 14% 86%;
+    --input: 220 14% 84%;
+    --ring: 172 72% 34%;
+    --radius: 0.5rem;
+  }
+  .dark {
+    --background: 222 18% 7%;
+    --foreground: 220 14% 92%;
+    --card: 222 16% 10%;
+    --card-foreground: 220 14% 92%;
+    --popover: 222 16% 11%;
+    --popover-foreground: 220 14% 92%;
+    --primary: 170 64% 44%;
+    --primary-foreground: 222 30% 8%;
+    --secondary: 222 13% 17%;
+    --secondary-foreground: 220 14% 90%;
+    --muted: 222 13% 14%;
+    --muted-foreground: 220 9% 60%;
+    --accent: 222 13% 19%;
+    --accent-foreground: 220 14% 94%;
+    --destructive: 0 66% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 56% 46%;
+    --warning: 36 92% 54%;
+    --border: 222 12% 19%;
+    --input: 222 12% 22%;
+    --ring: 170 64% 44%;
+  }
+  * {
+    @apply border-border;
+  }
+  html,
+  body,
+  #root {
+    @apply h-full;
+  }
+  body {
+    @apply bg-background text-foreground antialiased select-none;
+    font-size: 14px;
+  }
+  input,
+  textarea {
+    @apply select-text;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-secondary;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  input[type='range'] {
+    @apply h-1 cursor-pointer appearance-none rounded-full bg-secondary;
+    accent-color: hsl(var(--primary));
+  }
+  input[type='range']::-webkit-slider-thumb {
+    @apply size-3 appearance-none rounded-full bg-primary;
+  }
+}

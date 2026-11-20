@@ -1,0 +1,88 @@
+{
+  "common": {
+    "comingInPhase": "Coming in phase {{phase}}",
+    "comingLater": "This section is coming in a later phase."
+  },
+  "topbar": {
+    "openProject": "Open project",
+    "undo": "Undo (Ctrl+Z)",
+    "redo": "Redo (Ctrl+Y)",
+    "theme": "Theme: {{theme}}",
+    "language": "Switch language",
+    "settings": "Settings"
+  },
+  "theme": { "dark": "Dark", "light": "Light", "system": "System" },
+  "tools": {
+    "importVideo": "Import Video",
+    "importBgm": "Import BGM",
+    "importAiVoice": "Import AI Voice",
+    "separateVocals": "Remove BGM",
+    "muteOriginal": "Mute Original",
+    "exportSrt": "Export SRT",
+    "importSrt": "Import SRT/VTT",
+    "burnSubtitles": "Burn Subtitles",
+    "automate": "Automate",
+    "videoFiles": "Video files",
+    "reading": "Reading video…",
+    "openFailed": "Couldn't open the video"
+  },
+  "player": {
+    "empty": "No video yet — click “Import Video”",
+    "play": "Play (Space)",
+    "pause": "Pause (Space)",
+    "stop": "Stop",
+    "volume": "Volume",
+    "mute": "Mute",
+    "subtitles": "Subtitles",
+    "unsupported": "This video can't be previewed (unsupported codec). Processing and export will still work."
+  },
+  "grid": {
+    "title": "Segments",
+    "empty": "The subtitle / dubbing line grid arrives in Phase 2."
+  },
+  "timeline": { "title": "Timeline", "empty": "Waveform tracks arrive in Phase 6." },
+  "footer": { "jobs": "Jobs", "idle": "Idle", "keys": "Keys", "ram": "RAM", "disk": "Disk" },
+  "settings": {
+    "title": "Settings",
+    "search": "Search… (Ctrl+F)",
+    "language": "Interface language",
+    "theme": "Theme",
+    "sections": {
+      "general": "General",
+      "account": "Account",
+      "theme": "Theme",
+      "apiKeys": "API Keys",
+      "shortcuts": "Shortcuts",
+      "voiceClone": "Voice Clone Engine",
+      "offlineVoices": "Offline Voices",
+      "pronunciation": "Pronunciation",
+      "health": "Health",
+      "tutorials": "Tutorials",
+      "about": "About"
+    },
+    "version": "Version {{version}}"
+  },
+  "health": {
+    "title": "System health",
+    "runAgain": "Run again",
+    "score": "Score",
+    "later": "Later phase",
+    "backendDown": "Backend not reachable",
+    "items": {
+      "backend": "Backend server",
+      "ffmpeg": "ffmpeg",
+      "ffprobe": "ffprobe",
+      "gpuEncoder": "GPU video encoder",
+      "python": "Python",
+      "disk": "Disk space",
+      "internet": "Internet",
+      "whisper": "faster-whisper",
+      "cuda": "CUDA",
+      "apiKeys": "API keys valid",
+      "edgeTts": "Edge-TTS",
+      "demucs": "Demucs",
+      "diarization": "Speaker diarization",
+      "cloneEngine": "Voice clone engine"
+    }
+  }
+}

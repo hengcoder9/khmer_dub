@@ -1,0 +1,27 @@
+# Installed on demand by the app (Settings → Engines). Groups mirror shared/engines.ts.
+# core
+fastapi==0.115.6
+uvicorn==0.32.1
+edge-tts>=7.0.0
+numpy<2
+soundfile>=0.12
+requests
+# whisper
+faster-whisper>=1.1.0
+# torch (CUDA wheels from https://download.pytorch.org/whl/cu121)
+torch==2.5.1
+torchaudio==2.5.1
+# demucs
+demucs==4.0.1
+# diarization (resemblyzer installed with --no-deps after webrtcvad-wheels)
+webrtcvad-wheels
+librosa>=0.10
+scikit-learn
+scipy
+resemblyzer==0.1.4
+# offline translation
+ctranslate2>=4.4
+sentencepiece
+huggingface_hub
+# voice cloning
+f5-tts
