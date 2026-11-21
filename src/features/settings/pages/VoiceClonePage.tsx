@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { FileAudio, HeartPulse, Loader2, Play, Plus, Trash2 } from 'lucide-react'
+import { Download, FileAudio, HeartPulse, Loader2, Play, Plus, Trash2 } from 'lucide-react'
 import type { Gender, Voice } from '@shared/types'
 import { Button } from '@/components/ui/button'
 import { Field, Input, Select, Slider } from '@/components/ui/controls'
@@ -34,15 +34,20 @@ export function VoiceClonePage() {
   const applyConfig = (patch: Partial<typeof s>) => {
     s.set(patch)
     const n = { ...useSettings.getState(), ...patch }
-    post('/engines/config', { cloneLanes: n.cloneLanes, clone: { model: n.cloneModel, ckptFile: n.cloneCkpt || undefined, vocabFile: n.cloneVocab || undefined } }).catch(() => {})
+    post('/engines/config', { cloneLanes: n.cloneLanes, clone: { engine: n.cloneEngine, model: n.cloneModel, ckptFile: n.cloneCkpt || undefined, vocabFile: n.cloneVocab || undefined } }).catch(() => {})
   }
 
   const check = async () => {
     setChecking(true)
     setHealth(null)
     try {
-      const r = await api<{ ok: boolean; gpu?: boolean; device?: string; model?: string }>('/engines/clone/health')
-      setHealth(`✓ ${r.model} · ${r.gpu ? `GPU ${r.device ?? ''}` : 'CPU'}`)
+      const r = await api<{ ok: boolean; gpu?: boolean; device?: string; vram_gb?: number; model?: string; engine?: string; installed?: boolean }>('/engines/clone/health')
+      if (r.engine === 'voxcpm2' && r.installed === false) setHealth(`✗ ${t('clone.notInstalled', 'VoxCPM2 is not installed — Settings → Engines → Voice cloning (VoxCPM2)')}`)
+      else
+        setHealth(
+          `✓ ${r.model} · ${r.gpu ? `GPU ${r.device ?? ''}${r.vram_gb ? ` (${r.vram_gb} GB)` : ''}` : 'CPU'}` +
+            (r.engine === 'voxcpm2' && r.vram_gb !== undefined && r.vram_gb < 8 ? ` — ${t('clone.lowVram', 'under 8 GB VRAM: VoxCPM2 may run out of memory')}` : '')
+        )
     } catch (e) {
       setHealth(`✗ ${(e as Error).message}`)
     } finally {
@@ -79,6 +84,20 @@ export function VoiceClonePage() {
     }
   }
 
+  const warmup = async () => {
+    setBusy('warmup')
+    const id = toast.loading(t('clone.warming', 'Loading the voice model… the first time downloads ~5 GB, this can take a while'))
+    try {
+      await post('/engines/clone/warmup', {})
+      toast.success(t('clone.warm', 'Voice model ready'), { id })
+    } catch (e) {
+      toast.dismiss(id)
+      notify(e)
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const preview = async (v: Voice) => {
     setBusy(v.id)
     try {
@@ -94,15 +113,34 @@ export function VoiceClonePage() {
   return (
     <div className="flex max-w-2xl flex-col gap-5">
       <p className="text-sm text-muted-foreground">
-        {t('clone.desc', 'Local voice cloning with F5-TTS (install it in Engines). The base model speaks English/Chinese; for Khmer, load a Khmer fine-tuned checkpoint below.')}
+        {s.cloneEngine === 'voxcpm2'
+          ? t('clone.descVox', 'VoxCPM2 (OpenBMB, Apache-2.0) clones a voice from a 5–15 s clip and speaks Khmer, so an actor keeps their own voice in the dub. Install it in Engines; it needs an NVIDIA GPU with about 8 GB of VRAM. Only clone voices you have permission to use.')
+          : t('clone.desc', 'Local voice cloning with F5-TTS (install it in Engines). The base model speaks English/Chinese; for Khmer, load a Khmer fine-tuned checkpoint below.')}
       </p>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label={t('clone.engine', 'Clone engine')}>
+          <Select
+            value={s.cloneEngine}
+            onChange={(v) => applyConfig({ cloneEngine: v as 'voxcpm2' | 'f5' })}
+            options={[
+              { value: 'voxcpm2', label: t('clone.engineVox', 'VoxCPM2 — speaks Khmer (recommended)') },
+              { value: 'f5', label: t('clone.engineF5', 'F5-TTS — English/Chinese, or a Khmer checkpoint') }
+            ]}
+          />
+        </Field>
+        <Field
+          label={t('clone.lanes', 'Parallel GPU workers (lanes)')}
+          hint={s.cloneEngine === 'voxcpm2' && s.cloneLanes > 1 ? t('clone.lanesVox', 'Each VoxCPM2 lane needs ~8 GB of VRAM') : undefined}
+        >
+          <Slider min={1} max={4} step={1} value={s.cloneLanes} onChange={(v) => applyConfig({ cloneLanes: v })} />
+        </Field>
+      </div>
+      {s.cloneEngine === 'f5' && (
       <div className="grid grid-cols-2 gap-4">
         <Field label={t('clone.model', 'Model')}>
           <Input value={s.cloneModel} onChange={(e) => applyConfig({ cloneModel: e.target.value })} />
         </Field>
-        <Field label={t('clone.lanes', 'Parallel GPU workers (lanes)')}>
-          <Slider min={1} max={4} step={1} value={s.cloneLanes} onChange={(v) => applyConfig({ cloneLanes: v })} />
-        </Field>
+        <div />
         <Field label={t('clone.ckpt', 'Custom checkpoint (.safetensors/.pt)')}>
           <div className="flex gap-1">
             <Input className="flex-1" value={s.cloneCkpt} onChange={(e) => applyConfig({ cloneCkpt: e.target.value })} />
@@ -120,9 +158,13 @@ export function VoiceClonePage() {
           </div>
         </Field>
       </div>
+      )}
       <div className="flex items-center gap-3">
         <Button variant="outline" size="sm" onClick={check} disabled={checking}>
           {checking ? <Loader2 className="animate-spin" /> : <HeartPulse />} {t('clone.check', 'Start & check engine')}
+        </Button>
+        <Button variant="outline" size="sm" onClick={warmup} disabled={!!busy}>
+          {busy === 'warmup' ? <Loader2 className="animate-spin" /> : <Download />} {t('clone.warmup', 'Download & load model')}
         </Button>
         {health && <span className="text-sm text-muted-foreground">{health}</span>}
       </div>

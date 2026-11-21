@@ -23,6 +23,8 @@ interface SettingsState {
   defaultFemale: string
   gpuLanes: number
   cloneLanes: number
+  /** voice-clone engine: VoxCPM2 speaks Khmer; F5-TTS needs a Khmer checkpoint */
+  cloneEngine: 'voxcpm2' | 'f5'
   cloneModel: string
   cloneCkpt: string
   cloneVocab: string
@@ -66,6 +68,7 @@ export const useSettings = create<SettingsState>()(
       defaultFemale: DEFAULT_VOICES.female,
       gpuLanes: 1,
       cloneLanes: 1,
+      cloneEngine: 'voxcpm2',
       cloneModel: 'F5TTS_v1_Base',
       cloneCkpt: '',
       cloneVocab: '',

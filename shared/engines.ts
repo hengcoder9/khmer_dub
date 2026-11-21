@@ -17,5 +17,6 @@ export const ENGINE_GROUPS: EngineGroup[] = [
   { id: 'demucs', label: 'Demucs (remove BGM)', description: 'Separate vocals from music & effects', sizeHint: '~100 MB + model 80 MB', modules: ['demucs'], requires: ['torch'] },
   { id: 'diarization', label: 'Speakers & gender', description: 'Voice embeddings (Resemblyzer), clustering, pitch-based gender', sizeHint: '~150 MB', modules: ['resemblyzer', 'librosa', 'sklearn'], requires: ['torch'] },
   { id: 'translate', label: 'Offline translation', description: 'NLLB-200 600M via CTranslate2 (no internet needed after download)', sizeHint: '~80 MB + model 650 MB', modules: ['ctranslate2', 'sentencepiece', 'huggingface_hub'], requires: ['core'] },
-  { id: 'clone', label: 'Voice cloning (F5-TTS)', description: 'Local voice cloning from a 5–15 s reference clip', sizeHint: '~1 GB + model 1.3 GB', modules: ['f5_tts'], requires: ['torch'] }
+  { id: 'voxcpm', label: 'Voice cloning (VoxCPM2) — speaks Khmer', description: 'OpenBMB VoxCPM2: clones a voice from a 5–15 s clip and speaks 30 languages incl. Khmer (NVIDIA GPU, ~8 GB VRAM)', sizeHint: '~400 MB + model ~5 GB', modules: ['voxcpm', 'transformers', 'einops'], requires: ['torch'] },
+  { id: 'clone', label: 'Voice cloning (F5-TTS)', description: 'Local voice cloning from a 5–15 s reference clip (English/Chinese base model)', sizeHint: '~1 GB + model 1.3 GB', modules: ['f5_tts'], requires: ['torch'] }
 ]

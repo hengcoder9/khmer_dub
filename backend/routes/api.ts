@@ -77,4 +77,6 @@ export async function apiRoutes(app: FastifyInstance) {
     }
   )
   app.get('/engines/clone/health', async () => nextCloneLane().call('/health', undefined, 120_000))
+  // first load of VoxCPM2 downloads the model (~5 GB): allow a long time
+  app.post('/engines/clone/warmup', async () => nextCloneLane().call('/warmup', {}, 3_600_000))
 }

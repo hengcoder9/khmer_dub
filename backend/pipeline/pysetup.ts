@@ -100,6 +100,13 @@ function packagesFor(group: string, cuda: boolean): string[][] {
       return [['webrtcvad-wheels', 'librosa>=0.10', 'scikit-learn', 'scipy'], ['resemblyzer==0.1.4', '--no-deps']]
     case 'translate':
       return [['ctranslate2>=4.4', 'sentencepiece', 'huggingface_hub']]
+    case 'voxcpm':
+      // --no-deps: voxcpm also lists gradio, funasr, torchcodec, modelscope and training libs that cloning doesn't import,
+      // and torchcodec would pull a newer torch that breaks the other engines. Keep torch / numpy pinned.
+      return [
+        ['voxcpm==2.0.3', '--no-deps'],
+        ['transformers>=4.36.2,<5', 'einops', 'pydantic', 'safetensors', 'tqdm', 'librosa>=0.10', 'huggingface_hub', 'soundfile>=0.12', 'numpy<2', 'torch==2.5.1', 'torchaudio==2.5.1', '--extra-index-url', cuda ? TORCH_CUDA : TORCH_CPU]
+      ]
     case 'clone':
       return [['f5-tts']]
     default:

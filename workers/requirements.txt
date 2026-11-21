@@ -23,5 +23,11 @@ resemblyzer==0.1.4
 ctranslate2>=4.4
 sentencepiece
 huggingface_hub
-# voice cloning
+# voice cloning: VoxCPM2 (installed with --no-deps, see backend/pipeline/pysetup.ts)
+voxcpm==2.0.3
+transformers>=4.36.2,<5
+einops
+pydantic
+safetensors
+# voice cloning: F5-TTS
 f5-tts

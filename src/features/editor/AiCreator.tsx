@@ -1,19 +1,17 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Clapperboard, Copy, Download, Film, Loader2, Play, Sparkles, Wand2 } from 'lucide-react'
+import { Clapperboard, Copy, Download, Film, Layers, Loader2, Play, Rocket, Sparkles, Wand2 } from 'lucide-react'
 import type { Aspect, Episode } from '@shared/types'
 import { totalDuration } from '@shared/ranges'
 import { Button } from '@/components/ui/button'
-import { Input, Select, Toggle } from '@/components/ui/controls'
-import { projectsRoot, useProject } from '@/store/project'
-import { useSettings } from '@/store/settings'
+import { Checkbox, Input, Select, Toggle } from '@/components/ui/controls'
+import { useProject } from '@/store/project'
 import { playerApi } from '@/store/ui'
-import { exportEpisode, notify, planCreator, type CreatorItem, type CreatorMode } from '@/lib/pipeline'
+import { exportCreatorItems, generateCreatorVideos, notify, planCreator, type CreatorItem, type CreatorMode } from '@/lib/pipeline'
 import { cn, formatTime } from '@/lib/utils'
 
 const fmt = (s: number) => formatTime(s).slice(s >= 3600 ? 0 : 3, 8)
-const SUFFIX: Record<CreatorMode, string> = { shorts: 'Short', trailer: 'Trailer', recap: 'Recap' }
 const DEFAULT_SEC: Record<CreatorMode, number> = { shorts: 45, trailer: 60, recap: 90 }
 
 type Row = CreatorItem & { on: boolean }
@@ -21,15 +19,17 @@ type Row = CreatorItem & { on: boolean }
 /** AI Creator: shorts, trailer and recap videos from one episode, each with an AI title, description and hashtags. */
 export function AiCreator({ ep }: { ep: Episode }) {
   const { t } = useTranslation()
-  const dir = useProject((s) => s.dir)
-  const burnDefault = useProject((s) => s.project?.settings.burnSubtitles ?? true)
+  // select the (stable) episodes array, derive the ids — a new array from the selector would re-render forever
+  const episodes = useProject((s) => s.project?.episodes)
+  const readyEps = useMemo(() => (episodes ?? []).filter((e) => e.videoPath && e.segments.length).map((e) => e.id), [episodes])
+  const [showHook, setShowHook] = useState(true)
   const [mode, setMode] = useState<CreatorMode>('shorts')
   const [count, setCount] = useState(5)
   const [seconds, setSeconds] = useState(DEFAULT_SEC.shorts)
   const [aspect, setAspect] = useState<Aspect>('9:16')
   const [note, setNote] = useState('')
   const [rows, setRows] = useState<Row[]>([])
-  const [busy, setBusy] = useState<'plan' | 'export' | null>(null)
+  const [busy, setBusy] = useState<'plan' | 'export' | 'generate' | null>(null)
   const [progress, setProgress] = useState('')
 
   const pickMode = (m: CreatorMode) => {
@@ -52,54 +52,39 @@ export function AiCreator({ ep }: { ep: Episode }) {
     }
   }
 
+  const done = (files: string[], failed: number) => {
+    if (files.length) {
+      toast.success(t('creator.done', '{{n}} videos exported (with title & hashtags .txt)', { n: files.length }), {
+        action: { label: t('export.show', 'Show'), onClick: () => window.api.showInFolder(files[0]) }
+      })
+    } else if (failed) toast.error(t('creator.allFailed', 'No video could be exported'))
+  }
+
   const exportSelected = async () => {
-    const chosen = rows.map((r, i) => ({ r, i })).filter(({ r }) => r.on)
+    const chosen = rows.map((r, index) => ({ item: r as CreatorItem, index, on: r.on })).filter((x) => x.on)
     if (!chosen.length) return
     setBusy('export')
-    const root = dir ? `${dir}\\exports` : `${await projectsRoot()}\\exports`
-    const outDir = `${root}\\${ep.label}\\${mode === 'shorts' ? 'shorts' : mode}`
-    const files: string[] = []
-    let failed = 0
     try {
-      for (const [k, { r, i }] of chosen.entries()) {
-        setProgress(t('creator.exporting', 'Exporting {{k}} of {{n}}…', { k: k + 1, n: chosen.length }))
-        try {
-          const out = await exportEpisode(
-            {
-              outDir,
-              mp4: true,
-              srt: true,
-              vtt: false,
-              ass: false,
-              dubWav: false,
-              instrumental: false,
-              burn: burnDefault,
-              applyEdit: true,
-              // the dub mix is the same for every short: mix once, then reuse it
-              remix: k === 0,
-              originalAudio: false,
-              cpu: false,
-              resolution: useSettings.getState().exportResolution
-            },
-            ep.id,
-            {
-              clips: r.keep,
-              aspect,
-              suffix: mode === 'shorts' ? `${SUFFIX.shorts}${String(i + 1).padStart(2, '0')}` : SUFFIX[mode],
-              meta: { title: r.title, description: r.description, hashtags: r.hashtags }
-            }
-          )
-          files.push(...out.filter((f) => f.endsWith('.mp4')))
-        } catch (e) {
-          failed++
-          notify(e)
-        }
-      }
-      if (files.length) {
-        toast.success(t('creator.done', '{{n}} videos exported (with title & hashtags .txt)', { n: files.length }), {
-          action: { label: t('export.show', 'Show'), onClick: () => window.api.showInFolder(files[0]) }
-        })
-      } else if (failed) toast.error(t('creator.allFailed', 'No video could be exported'))
+      const r = await exportCreatorItems(ep.id, mode, chosen, { aspect, showHook }, (k, n) =>
+        setProgress(t('creator.exporting', 'Exporting {{k}} of {{n}}…', { k: Math.min(k + 1, n), n }))
+      )
+      done(r.files, r.failed)
+    } finally {
+      setBusy(null)
+      setProgress('')
+    }
+  }
+
+  /** One click: plan + export, for this episode or all episodes. */
+  const generate = async (ids: string[]) => {
+    if (ids.length > 1 && !confirm(t('creator.allConfirm', 'Make {{what}} for all {{n}} episodes and export them? This uses the AI and takes a while.', { what: mode === 'shorts' ? t('creator.count', '{{n}} shorts', { n: count }) : mode === 'trailer' ? t('creator.trailer', 'Trailer') : t('creator.recap', 'Recap'), n: ids.length })))
+      return
+    setBusy('generate')
+    setRows([])
+    try {
+      const r = await generateCreatorVideos(ids, mode, { count: mode === 'shorts' ? count : 1, seconds, aspect, showHook, note }, setProgress)
+      done(r.files, r.failed)
+      if (r.skipped.length) toast.info(t('editor.allSkipped', 'Skipped (no video or lines yet): {{list}}', { list: r.skipped.join(', ') }))
     } finally {
       setBusy(null)
       setProgress('')
@@ -163,13 +148,23 @@ export function AiCreator({ ep }: { ep: Episode }) {
           onChange={(e) => setNote(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && plan()}
         />
-        <div className="flex items-center gap-2">
-          <Button size="sm" onClick={plan} disabled={!!busy || !ep.segments.length}>
+        <Checkbox checked={showHook} onChange={setShowHook} label={t('creator.showHook', 'Show the hook on screen (first 3 s)')} />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" onClick={() => generate([ep.id])} disabled={!!busy || !ep.segments.length} title={t('creator.generateHint', 'The AI picks the moments and the videos are exported straight away')}>
+            {busy === 'generate' ? <Loader2 className="animate-spin" /> : <Rocket />} {t('creator.generate', 'Generate videos')}
+          </Button>
+          {readyEps.length > 1 && (
+            <Button size="sm" variant="outline" onClick={() => generate(readyEps)} disabled={!!busy}>
+              <Layers /> {t('creator.generateAll', 'All {{n}} episodes', { n: readyEps.length })}
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" onClick={plan} disabled={!!busy || !ep.segments.length} title={t('creator.reviewHint', 'See the AI picks first, then choose what to export')}>
             {busy === 'plan' ? <Loader2 className="animate-spin" /> : <Wand2 />}{' '}
             {mode === 'shorts' ? t('creator.planShorts', 'Find the best moments') : mode === 'trailer' ? t('creator.planTrailer', 'Make trailer') : t('creator.planRecap', 'Make recap')}
           </Button>
           {!ep.segments.length && <span className="text-xs text-warning">{t('creator.needLines', 'Make the lines first so the AI can read the story')}</span>}
         </div>
+        {busy === 'generate' && progress && <div className="text-xs text-muted-foreground">{progress}</div>}
 
         {rows.length > 0 && (
           <div className="flex flex-col gap-2">

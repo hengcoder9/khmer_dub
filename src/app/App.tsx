@@ -51,7 +51,7 @@ export function App() {
     post('/engines/config', {
       gpuLanes: s.gpuLanes,
       cloneLanes: s.cloneLanes,
-      clone: { model: s.cloneModel, ckptFile: s.cloneCkpt || undefined, vocabFile: s.cloneVocab || undefined }
+      clone: { engine: s.cloneEngine, model: s.cloneModel, ckptFile: s.cloneCkpt || undefined, vocabFile: s.cloneVocab || undefined }
     }).catch(() => {})
     const flush = () => void saveNow()
     window.addEventListener('beforeunload', flush)

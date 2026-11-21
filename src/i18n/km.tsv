@@ -568,3 +568,19 @@ polish.selected	ឃ្លាដែលបានជ្រើស ({{n}})
 polish.new	ឃ្លាទាំងអស់ដែលមិនទាន់កែ
 polish.all	កែគ្រប់ឃ្លាម្តងទៀត
 polish.auto	កែដោយស្វ័យប្រវត្តិមុនបង្កើតសំឡេង
+creator.showHook	បង្ហាញចំណុចទាក់ទាញលើអេក្រង់ (៣ វិនាទីដំបូង)
+creator.generate	បង្កើតវីដេអូ
+creator.generateHint	AI ជ្រើសគ្រាល្អៗ ហើយនាំចេញវីដេអូភ្លាមៗ
+creator.generateAll	ភាគទាំង {{n}}
+creator.reviewHint	មើលជម្រើសរបស់ AI ជាមុន រួចជ្រើសរើសអ្វីដែលត្រូវនាំចេញ
+creator.allConfirm	បង្កើត {{what}} សម្រាប់ភាគទាំង {{n}} ហើយនាំចេញ? វាប្រើ AI និងចំណាយពេលបន្តិច។
+clone.engine	ម៉ាស៊ីនក្លូនសំឡេង
+clone.engineVox	VoxCPM2 — និយាយខ្មែរបាន (ណែនាំ)
+clone.engineF5	F5-TTS — អង់គ្លេស/ចិន ឬ checkpoint ខ្មែរ
+clone.descVox	VoxCPM2 (OpenBMB, Apache-2.0) ក្លូនសំឡេងពីឃ្លីប ៥–១៥ វិនាទី ហើយនិយាយភាសាខ្មែរ ដូច្នេះតួសម្តែងរក្សាសំឡេងផ្ទាល់ខ្លួនក្នុងការបញ្ចូលសំឡេង។ ដំឡើងវានៅក្នុង ម៉ាស៊ីន; ត្រូវការ GPU NVIDIA ដែលមាន VRAM ប្រហែល ៨ GB។ ក្លូនតែសំឡេងដែលអ្នកមានការអនុញ្ញាតប៉ុណ្ណោះ។
+clone.lanesVox	VoxCPM2 មួយ lane ត្រូវការ VRAM ប្រហែល ៨ GB
+clone.warmup	ទាញយក និងផ្ទុកម៉ូដែល
+clone.warming	កំពុងផ្ទុកម៉ូដែលសំឡេង… លើកដំបូងទាញយកប្រហែល ៥ GB អាចចំណាយពេលយូរ
+clone.warm	ម៉ូដែលសំឡេងរួចរាល់
+clone.notInstalled	មិនទាន់ដំឡើង VoxCPM2 — ការកំណត់ → ម៉ាស៊ីន → ក្លូនសំឡេង (VoxCPM2)
+clone.lowVram	VRAM តិចជាង ៨ GB៖ VoxCPM2 អាចអស់អង្គចងចាំ

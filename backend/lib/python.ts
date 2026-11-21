@@ -198,10 +198,18 @@ export const torchWorker = new PyWorker('torch-worker', 'ai_worker.py')
 /** Voice-clone workers ("lanes"), one process per lane. */
 let cloneLanes: PyWorker[] = []
 let laneCursor = 0
-export function setCloneLanes(n: number, ckpt?: { model?: string; ckptFile?: string; vocabFile?: string }) {
-  const args = ['--model', ckpt?.model || 'F5TTS_v1_Base']
-  if (ckpt?.ckptFile) args.push('--ckpt', ckpt.ckptFile)
-  if (ckpt?.vocabFile) args.push('--vocab', ckpt.vocabFile)
+export type CloneEngine = 'voxcpm2' | 'f5'
+let cloneEngine: CloneEngine = 'f5'
+export const currentCloneEngine = () => cloneEngine
+
+export function setCloneLanes(n: number, ckpt?: { engine?: CloneEngine; model?: string; ckptFile?: string; vocabFile?: string }) {
+  cloneEngine = ckpt?.engine === 'voxcpm2' ? 'voxcpm2' : 'f5'
+  const args = ['--engine', cloneEngine]
+  if (cloneEngine === 'f5') {
+    args.push('--model', ckpt?.model || 'F5TTS_v1_Base')
+    if (ckpt?.ckptFile) args.push('--ckpt', ckpt.ckptFile)
+    if (ckpt?.vocabFile) args.push('--vocab', ckpt.vocabFile)
+  }
   cloneLanes.forEach((w) => w.stop())
   cloneLanes = Array.from({ length: Math.max(1, Math.min(4, n)) }, (_, i) => new PyWorker(`clone-${i + 1}`, 'clone_worker.py', args))
 }

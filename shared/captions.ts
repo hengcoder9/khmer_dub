@@ -131,3 +131,20 @@ export function toAss(cues: Cue[], style: CaptionStyle, width: number, height: n
   }
   return header.join('\n') + '\n' + events.join('\n') + '\n'
 }
+
+/**
+ * AI Creator hook: a big boxed title at the top for the first seconds of a short (rendered by libass like the
+ * captions, so Khmer shapes correctly). Adds a "Hook" style and one event to an ASS file made by toAss().
+ */
+export function withHook(ass: string, hook: string, font: string, width: number, height: number, seconds = 3): string {
+  const text = escapeText(hook.trim())
+  if (!text) return ass
+  const short = Math.min(width, height)
+  const size = Math.round(short * 0.075)
+  const style = `Style: Hook,${font},${size},${assColor('#FFFFFF')},${assColor('#FFFFFF')},${assColor('#000000', 0.7)},${assColor('#000000', 0.7)},-1,0,0,0,100,100,0,0,3,${Math.max(2, Math.round(size * 0.18))},0,8,${Math.round(width * 0.07)},${Math.round(width * 0.07)},${Math.round(height * 0.1)},1`
+  const event = `Dialogue: 1,${assTime(0)},${assTime(seconds)},Hook,,0,0,0,,{\\fad(150,350)}${text}`
+  const lines = ass.split('\n')
+  const at = lines.findIndex((l) => l.startsWith('Style: '))
+  lines.splice(at >= 0 ? at + 1 : lines.length, 0, style)
+  return lines.join('\n').replace(/\n*$/, '\n') + event + '\n'
+}

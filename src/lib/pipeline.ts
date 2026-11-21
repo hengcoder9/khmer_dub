@@ -18,6 +18,7 @@ import {
   epDir,
   mutate,
   patchSegments,
+  projectsRoot,
   setEpisodeVideo,
   sortSegments,
   updateEpisode,
@@ -612,6 +613,8 @@ export interface ExportExtra {
   /** appended to the file name, e.g. "Short01", "Trailer" */
   suffix: string
   meta?: UploadMeta
+  /** on-screen hook for the first seconds */
+  hook?: string
 }
 
 export async function exportEpisode(opts: ExportOptions, epId?: string, extra?: ExportExtra) {
@@ -685,6 +688,7 @@ export async function exportEpisode(opts: ExportOptions, epId?: string, extra?: 
       resolution: opts.resolution || undefined,
       splitMinutes: extra ? undefined : opts.splitMinutes || undefined,
       meta,
+      hook: extra?.hook || undefined,
       sourceNote: sourceNote(),
       watermark: p.settings.watermark
     },
@@ -1038,4 +1042,98 @@ export async function polishForVoice(ids?: string[], epId?: string, o: { quiet?:
   }))
   if (!o.quiet) toast.success(`Polished ${r.results.length} lines for voice — ${changed} changed${r.missing ? `, ${r.missing} skipped` : ''}`)
   return changed
+}
+
+// ───────── AI Creator: export & one-click generate ─────────
+
+const CREATOR_SUFFIX: Record<CreatorMode, string> = { shorts: 'Short', trailer: 'Trailer', recap: 'Recap' }
+
+/** Export AI Creator items as videos (dub audio, captions as set, hook on screen, .txt upload text). */
+export async function exportCreatorItems(
+  epId: string,
+  mode: CreatorMode,
+  items: Array<{ item: CreatorItem; index: number }>,
+  o: { aspect: Aspect; showHook: boolean },
+  onProgress?: (k: number, n: number) => void
+): Promise<{ files: string[]; failed: number }> {
+  const e = ep(epId)
+  const p = P().project!
+  const dir = P().dir
+  const root = dir ? `${dir}\\exports` : `${await projectsRoot()}\\exports`
+  const outDir = `${root}\\${e.label}\\${mode === 'shorts' ? 'shorts' : mode}`
+  const files: string[] = []
+  let failed = 0
+  for (const [k, { item, index }] of items.entries()) {
+    onProgress?.(k, items.length)
+    try {
+      const out = await exportEpisode(
+        {
+          outDir,
+          mp4: true,
+          srt: true,
+          vtt: false,
+          ass: false,
+          dubWav: false,
+          instrumental: false,
+          burn: p.settings.burnSubtitles,
+          applyEdit: true,
+          // the dub mix is the same for every short: mix once, then reuse it
+          remix: k === 0,
+          originalAudio: false,
+          cpu: false,
+          resolution: S().exportResolution
+        },
+        e.id,
+        {
+          clips: item.keep,
+          aspect: o.aspect,
+          suffix: mode === 'shorts' ? `${CREATOR_SUFFIX.shorts}${String(index + 1).padStart(2, '0')}` : CREATOR_SUFFIX[mode],
+          meta: { title: item.title, description: item.description, hashtags: item.hashtags },
+          hook: o.showHook ? item.hook : undefined
+        }
+      )
+      files.push(...out.filter((f) => f.endsWith('.mp4')))
+    } catch (err) {
+      failed++
+      notify(err)
+    }
+  }
+  onProgress?.(items.length, items.length)
+  return { files, failed }
+}
+
+/**
+ * One click: the AI plans the shorts / trailer / recap and they are exported straight away, for one episode or for
+ * every episode that has lines.
+ */
+export async function generateCreatorVideos(
+  epIds: string[],
+  mode: CreatorMode,
+  o: { count: number; seconds: number; aspect: Aspect; showHook: boolean; note?: string },
+  onProgress?: (msg: string) => void
+): Promise<{ files: string[]; failed: number; skipped: string[] }> {
+  const files: string[] = []
+  const skipped: string[] = []
+  let failed = 0
+  for (const [i, id] of epIds.entries()) {
+    const e = ep(id)
+    const tag = epIds.length > 1 ? `${e.label} (${i + 1}/${epIds.length}) · ` : ''
+    if (!e.videoPath || !e.segments.length) {
+      skipped.push(e.label)
+      continue
+    }
+    try {
+      onProgress?.(`${tag}AI is picking the moments…`)
+      const items = await planCreator(id, mode, { count: o.count, seconds: o.seconds, note: o.note })
+      const r = await exportCreatorItems(id, mode, items.map((item, index) => ({ item, index })), o, (k, n) =>
+        onProgress?.(`${tag}Exporting ${Math.min(k + 1, n)} of ${n}…`)
+      )
+      files.push(...r.files)
+      failed += r.failed
+    } catch (err) {
+      failed++
+      notify(err)
+    }
+  }
+  return { files, failed, skipped }
 }
