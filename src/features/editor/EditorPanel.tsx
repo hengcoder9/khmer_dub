@@ -36,6 +36,7 @@ import { cn, formatTime } from '@/lib/utils'
 import { CaptionStyleEditor } from './CaptionStyleEditor'
 import { AiCreator } from './AiCreator'
 import { PromptVideo } from './PromptVideo'
+import { StoryVideo } from './StoryVideo'
 import { useBackendThumb } from './thumbs'
 
 function Section({ icon: Icon, title, children, right }: { icon: React.ElementType; title: string; children: React.ReactNode; right?: React.ReactNode }) {
@@ -62,6 +63,7 @@ export function EditorPanel() {
     return (
       <div className="flex h-full flex-col items-center gap-6 overflow-y-auto p-6 text-center text-sm text-muted-foreground">
         {/* make a brand-new video from a prompt — no episode needed */}
+        <StoryVideo compact />
         <PromptVideo compact />
         <div className="flex w-full max-w-xl items-center gap-3 text-xs uppercase tracking-wide">
           <div className="h-px flex-1 bg-border" /> {t('editor.or', 'or')} <div className="h-px flex-1 bg-border" />
@@ -143,6 +145,7 @@ function EditorBody({ ep }: { ep: Episode }) {
         <div className="grid gap-3 p-3 xl:grid-cols-2">
           <div className="flex flex-col gap-3">
             <AiCommand ep={ep} lang={lang} />
+            <StoryVideo />
             <PromptVideo />
             <AiCreator ep={ep} />
             <QuickTools ep={ep} setEdit={setEdit} />

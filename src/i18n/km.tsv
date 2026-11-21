@@ -608,3 +608,28 @@ pv.addEpisode	បន្ថែមជាភាគ
 pv.added	បានបន្ថែមជាភាគថ្មី — កំពុងបង្កើតឃ្លា
 editor.or	ឬ
 editor.noVideoTitle2	កាត់វីដេអូខ្លី ទ្រេលឡឺ និងសង្ខេប ពីភាគរបស់អ្នក
+sv.title	វីដេអូ Claude
+sv.subtitle	Claude សរសេរ · កម្មវិធីបង្កើតវីដេអូ
+sv.placeholder	វីដេអូនិយាយពីអ្វី? ឧ. «ប្រវត្តិអង្គរវត្តក្នុង ៤៥ វិនាទី» ឬ «ហេតុអ្វីអង្ករខ្មែរពិសេស» (ខ្មែរ ឬអង់គ្លេស)
+sv.style.story	រឿង
+sv.style.explainer	ពន្យល់
+sv.style.motivation	លើកទឹកចិត្ត
+sv.style.news	ព័ត៌មាន
+sv.style.ad	ពាណិជ្ជកម្ម
+sv.voice	សំឡេងអ្នកនិទាន
+sv.bg	ផ្ទៃខាងក្រោយ៖
+sv.colors	ពណ៌ (ឥតគិតថ្លៃ)
+sv.media	រូបភាព / ឃ្លីបរបស់ខ្ញុំ
+sv.omni	Omni ថត (បង់ប្រាក់)
+sv.omniHint	Gemini Omni ថតឈុតនីមួយៗពីពាក្យពិពណ៌នាកាមេរ៉ារបស់ Claude — ត្រូវការ Gemini key បង់ប្រាក់
+sv.mediaN	{{n}} ឯកសារ
+sv.addMedia	បន្ថែម…
+sv.music	តន្ត្រី
+sv.oneClick	សរសេរ និងបង្កើត
+sv.oneClickHint	Claude សរសេរឈុត ហើយបង្កើតវីដេអូភ្លាមៗ
+sv.write	សរសេរឈុតជាមុន
+sv.rendering	កំពុងបង្កើត… មើលដំណើរការនៅផ្ទាំងការងារ
+sv.removeScene	លុបឈុត
+sv.render	បង្កើតវីដេអូ
+sv.done	វីដេអូ Claude រួចរាល់
+sv.needMedia	បន្ថែមរូបភាព ឬឃ្លីបជាមុនសិន (ឬជ្រើស ពណ៌)

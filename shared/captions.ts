@@ -136,6 +136,24 @@ export function toAss(cues: Cue[], style: CaptionStyle, width: number, height: n
  * AI Creator hook: a big boxed title at the top for the first seconds of a short (rendered by libass like the
  * captions, so Khmer shapes correctly). Adds a "Hook" style and one event to an ASS file made by toAss().
  */
+/**
+ * Claude Video: a big title per scene in the upper third (bold, outlined, pops in), added to an ASS file from toAss().
+ */
+export function withTitles(ass: string, titles: Array<{ text: string; start: number; end: number }>, font: string, width: number, height: number): string {
+  const list = titles.map((x) => ({ ...x, text: escapeText(x.text.trim()) })).filter((x) => x.text && x.end > x.start)
+  if (!list.length) return ass
+  const short = Math.min(width, height)
+  const size = Math.round(short * 0.125)
+  const style = `Style: Title,${font},${size},${assColor('#FFFFFF')},${assColor('#FFFFFF')},${assColor('#000000')},${assColor('#000000', 0.55)},-1,0,0,0,100,100,0,0,1,${Math.max(2, Math.round(size * 0.08))},${Math.max(1, Math.round(size * 0.06))},8,${Math.round(width * 0.08)},${Math.round(width * 0.08)},${Math.round(height * 0.22)},1`
+  const events = list.map(
+    (x) => `Dialogue: 1,${assTime(x.start)},${assTime(x.end)},Title,,0,0,0,,{\\fad(250,250)\\fscx80\\fscy80\\t(0,250,\\fscx100\\fscy100)}${x.text}`
+  )
+  const lines = ass.split('\n')
+  const at = lines.findIndex((l) => l.startsWith('Style: '))
+  lines.splice(at >= 0 ? at + 1 : lines.length, 0, style)
+  return lines.join('\n').replace(/\n*$/, '\n') + events.join('\n') + '\n'
+}
+
 export function withHook(ass: string, hook: string, font: string, width: number, height: number, seconds = 3): string {
   const text = escapeText(hook.trim())
   if (!text) return ass

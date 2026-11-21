@@ -2,7 +2,8 @@
 
 import { toast } from 'sonner'
 import type { Actor, Aspect, Episode, MediaInfo, Segment, SttEngine, Translator, Voice } from '@shared/types'
-import { CAPTION_PRESETS } from '@shared/captions'
+import { CAPTION_PRESETS, DEFAULT_CAPTIONS } from '@shared/captions'
+import type { StoryBackground, StoryPlan, StoryStyle } from '@shared/story'
 import { needsPolish, spokenText } from '@shared/voicetext'
 import type { RawSeg } from '@shared/segments'
 import type { TResult } from '@shared/translate'
@@ -1159,4 +1160,38 @@ export async function generatePromptVideo(o: PromptVideoOptions): Promise<string
   const name = `AI ${stamp} ${o.prompt.replace(/\s+/g, ' ').slice(0, 40)}`
   const r = await runJob<{ path: string }>('genvideo', { ...o, outDir: `${dir}\\generated`, name })
   return r.path
+}
+
+// ───────── Claude Video (Claude writes, the app renders) ─────────
+
+/** The writer: Claude when a Claude key is saved, otherwise the project's translator model. */
+async function writerModel() {
+  return (await hasClaudeKey()) ? llmChoice('claude') : llmChoice(P().project?.settings.translator ?? 'gemini')
+}
+
+export async function planStoryVideo(o: { topic: string; style: StoryStyle; seconds: number }): Promise<StoryPlan> {
+  const lang = P().project?.settings.targetLang ?? 'km'
+  return post<StoryPlan>('/ai/story', { ...(await writerModel()), topic: o.topic, style: o.style, seconds: o.seconds, lang })
+}
+
+export async function renderStoryVideo(o: {
+  plan: StoryPlan
+  aspect: '9:16' | '16:9'
+  background: StoryBackground
+  media?: string[]
+  musicPath?: string
+  voiceId: string
+}): Promise<string[]> {
+  const p = P().project
+  const dir = P().dir ?? (await projectsRoot())
+  const r = await runJob<{ files: string[] }>('story', {
+    ...o,
+    defaultMale: S().defaultMale,
+    defaultFemale: S().defaultFemale,
+    captions: p?.settings.captions ?? DEFAULT_CAPTIONS,
+    lang: p?.settings.targetLang ?? 'km',
+    outDir: `${dir}\\generated`,
+    name: `Claude ${o.plan.title}`.slice(0, 80)
+  })
+  return r.files
 }

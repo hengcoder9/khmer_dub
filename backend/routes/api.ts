@@ -12,6 +12,7 @@ import { allowFile } from '../lib/allow'
 import { shortenLine } from '../pipeline/translate'
 import { planEdit, type AiEditRequest } from '../pipeline/aiedit'
 import { planCreate, videoPrompt, writeMeta, type CreatorRequest } from '../pipeline/aicreate'
+import { planStory } from '../pipeline/story'
 import { allVoices, createCloneVoice, deleteCloneVoice, edgeVoices } from '../pipeline/voices'
 import { previewVoice } from '../pipeline/tts'
 import { cudaInfo, engineStatus, hasNvidia } from '../pipeline/pysetup'
@@ -47,6 +48,7 @@ export async function apiRoutes(app: FastifyInstance) {
   app.post<{ Body: CreatorRequest }>('/ai/create', async (req) => planCreate(req.body))
   app.post<{ Body: Parameters<typeof writeMeta>[0] }>('/ai/meta', async (req) => writeMeta(req.body))
   app.post<{ Body: Parameters<typeof videoPrompt>[0] }>('/ai/video-prompt', async (req) => videoPrompt(req.body))
+  app.post<{ Body: Parameters<typeof planStory>[0] }>('/ai/story', async (req) => planStory(req.body))
 
   // voices
   app.get<{ Querystring: { refresh?: string } }>('/voices', async (req) => {
