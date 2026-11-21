@@ -35,6 +35,7 @@ import { applyEditPlan, detectSilences, editAllEpisodes, importBgm, importFolder
 import { cn, formatTime } from '@/lib/utils'
 import { CaptionStyleEditor } from './CaptionStyleEditor'
 import { AiCreator } from './AiCreator'
+import { PromptVideo } from './PromptVideo'
 import { useBackendThumb } from './thumbs'
 
 function Section({ icon: Icon, title, children, right }: { icon: React.ElementType; title: string; children: React.ReactNode; right?: React.ReactNode }) {
@@ -59,10 +60,15 @@ export function EditorPanel() {
   if (!ep) return null
   if (!ep.videoPath)
     return (
-      <div className="grid h-full place-items-center p-6 text-center text-sm text-muted-foreground">
+      <div className="flex h-full flex-col items-center gap-6 overflow-y-auto p-6 text-center text-sm text-muted-foreground">
+        {/* make a brand-new video from a prompt — no episode needed */}
+        <PromptVideo compact />
+        <div className="flex w-full max-w-xl items-center gap-3 text-xs uppercase tracking-wide">
+          <div className="h-px flex-1 bg-border" /> {t('editor.or', 'or')} <div className="h-px flex-1 bg-border" />
+        </div>
         <div className="flex max-w-md flex-col items-center gap-3">
           <Clapperboard className="size-8 opacity-50" />
-          <div className="text-base font-medium text-foreground">{t('editor.noVideoTitle', 'AI Video starts from your episode')}</div>
+          <div className="text-base font-medium text-foreground">{t('editor.noVideoTitle2', 'Cut shorts, trailer & recap from your episode')}</div>
           <p>
             {t(
               'editor.noVideo2',
@@ -137,6 +143,7 @@ function EditorBody({ ep }: { ep: Episode }) {
         <div className="grid gap-3 p-3 xl:grid-cols-2">
           <div className="flex flex-col gap-3">
             <AiCommand ep={ep} lang={lang} />
+            <PromptVideo />
             <AiCreator ep={ep} />
             <QuickTools ep={ep} setEdit={setEdit} />
             <Transcript ep={ep} setEdit={setEdit} />

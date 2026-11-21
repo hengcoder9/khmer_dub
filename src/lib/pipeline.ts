@@ -1137,3 +1137,26 @@ export async function generateCreatorVideos(
   }
   return { files, failed, skipped }
 }
+
+// ───────── AI Video from prompt (Gemini Omni) ─────────
+
+export type PromptVideoOptions = { prompt: string; aspect: '9:16' | '16:9'; resolution: '360p' | '720p' | '1080p'; seconds: number; imagePath?: string }
+
+/** Approximate Google price per second of generated video (paid tier; from Google's pricing table, may change). */
+export const OMNI_USD_PER_SEC: Record<PromptVideoOptions['resolution'], number> = { '360p': 0.023, '720p': 0.07, '1080p': 0.104 }
+
+/** Turn an idea (Khmer or English) into a detailed English video prompt with the project's AI model. */
+export async function improveVideoPrompt(idea: string, o: { seconds: number; aspect: string }): Promise<string> {
+  const p = P().project
+  const { provider, model } = llmChoice(p?.settings.translator ?? 'gemini')
+  return (await post<{ prompt: string }>('/ai/video-prompt', { provider, model, idea, ...o })).prompt
+}
+
+/** Generate a video from a prompt; saved in the project's "generated" folder (or Documents\KhmerDub Projects\generated). */
+export async function generatePromptVideo(o: PromptVideoOptions): Promise<string> {
+  const dir = P().dir ?? (await projectsRoot())
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')
+  const name = `AI ${stamp} ${o.prompt.replace(/\s+/g, ' ').slice(0, 40)}`
+  const r = await runJob<{ path: string }>('genvideo', { ...o, outDir: `${dir}\\generated`, name })
+  return r.path
+}

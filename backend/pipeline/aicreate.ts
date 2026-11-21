@@ -197,3 +197,23 @@ export function metaText(m: UploadMeta, part?: { index: number; count: number })
   const title = part ? `${m.title} (${part.index}/${part.count})` : m.title
   return [title, '', m.description, '', m.hashtags.join(' ')].join('\r\n').trim() + '\r\n'
 }
+
+/** "AI Video from prompt": turn a short idea (any language, e.g. Khmer) into one detailed English video prompt. */
+export async function videoPrompt(req: { provider: Provider; model: string; idea: string; seconds: number; aspect: string }): Promise<{ prompt: string }> {
+  const { llmText } = await import('../lib/llm')
+  const out = await llmText({
+    provider: req.provider,
+    model: req.model,
+    system: [
+      'You write prompts for an AI text-to-video model (Google Gemini Omni) that works best in English.',
+      `Rewrite the user's idea (any language) as ONE detailed English prompt for a ${req.seconds}-second ${req.aspect} video with sound.`,
+      'Describe: subject and characters (appearance, clothing), the action in order, setting and time of day, camera (shot size, movement), lighting, mood/style, and sounds or music.',
+      'Keep it to one shot or a few simple beats that fit the length. If people speak, give at most one short line of dialogue in quotes.',
+      'Keep cultural details from the idea (e.g. Cambodian / Khmer places, clothes, food). No real celebrities, brands or copyrighted characters.',
+      'Reply with ONLY the prompt, no title, no quotes around it.'
+    ].join('\n'),
+    parts: [{ text: req.idea }],
+    temperature: 0.6
+  })
+  return { prompt: out.trim().replace(/^["“]+|["”]+$/g, '') }
+}

@@ -13,6 +13,7 @@ import { readScreen, type OcrPayload } from './pipeline/ocr'
 import { installEngines } from './pipeline/pysetup'
 import { download, type DownloadPayload } from './pipeline/download'
 import { polish, type PolishPayload } from './pipeline/polish'
+import { genVideo, type GenVideoPayload } from './pipeline/genvideo'
 import { getPeaks } from './lib/peaks'
 
 export function registerAllJobs() {
@@ -38,6 +39,7 @@ export function registerAllJobs() {
   registerJob<ExportPayload>('export', { lane: 'cpu', label: (p) => `Export ${p.baseName}`, run: exportEpisode })
   registerJob<DownloadPayload>('download', { lane: 'net', label: () => 'Download video from link', run: download })
   registerJob<PolishPayload>('polish', { lane: 'net', label: (p) => `Polish ${p.items.length} lines for voice (${p.provider})`, run: polish })
+  registerJob<GenVideoPayload>('genvideo', { lane: 'net', label: (p) => `AI Video from prompt (${p.seconds}s ${p.aspect})`, run: genVideo })
   registerJob<OcrPayload>('ocr', { lane: 'net', label: () => 'Read screen subtitles', run: readScreen })
   registerJob<{ groups: string[]; force?: boolean }>('engines.install', {
     lane: 'cpu',
