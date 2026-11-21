@@ -183,7 +183,8 @@ export function AutomateDialog({ onClose }: { onClose: () => void }) {
                   originalAudio: false,
                   cpu: false,
                   resolution: useSettings.getState().exportResolution,
-                  splitMinutes: useSettings.getState().exportSplitMinutes
+                  splitMinutes: useSettings.getState().exportSplitMinutes,
+                  aiMeta: useSettings.getState().exportAiMeta
                 },
                 e.id
               )

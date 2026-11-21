@@ -10,6 +10,7 @@ import {
   Clapperboard,
   Eraser,
   GripVertical,
+  Layers,
   Loader2,
   Music,
   RotateCcw,
@@ -24,24 +25,14 @@ import { addRemoved, effectiveClips, fullClip, moveClip, normalize, outputDurati
 import { AI_EDIT_PRESETS, findFillers, removedLineIds, silenceCuts } from '@shared/editor'
 import { Button } from '@/components/ui/button'
 import { Slider, Switch, Toggle } from '@/components/ui/controls'
-import { mutate, sortSegments, updateEpisode, useActiveEpisode, useProject } from '@/store/project'
-import { llmChoice, useSettings } from '@/store/settings'
+import { sortSegments, updateEpisode, useActiveEpisode, useProject } from '@/store/project'
+import { useSettings } from '@/store/settings'
 import { playerApi, useUi } from '@/store/ui'
-import { post } from '@/lib/api'
-import { detectSilences, importBgm, newClipId, notify } from '@/lib/pipeline'
+import { applyEditPlan, detectSilences, editAllEpisodes, importBgm, newClipId, notify, planEpisodeEdit, type EditPlan } from '@/lib/pipeline'
 import { cn, formatTime } from '@/lib/utils'
 import { CaptionStyleEditor } from './CaptionStyleEditor'
-import { CAPTION_PRESETS } from '@shared/captions'
+import { AiCreator } from './AiCreator'
 import { useBackendThumb } from './thumbs'
-
-interface Plan {
-  summary: string
-  keep: Array<{ start: number; end: number; reason?: string }>
-  aspect?: Aspect | ''
-  fadeIn?: number
-  fadeOut?: number
-  captionPreset?: string
-}
 
 function Section({ icon: Icon, title, children, right }: { icon: React.ElementType; title: string; children: React.ReactNode; right?: React.ReactNode }) {
   return (
@@ -120,7 +111,8 @@ function EditorBody({ ep }: { ep: Episode }) {
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="grid gap-3 p-3 xl:grid-cols-2">
           <div className="flex flex-col gap-3">
-            <AiCommand ep={ep} lang={lang} setEdit={setEdit} />
+            <AiCommand ep={ep} lang={lang} />
+            <AiCreator ep={ep} />
             <QuickTools ep={ep} setEdit={setEdit} />
             <Transcript ep={ep} setEdit={setEdit} />
           </div>
@@ -140,37 +132,22 @@ function EditorBody({ ep }: { ep: Episode }) {
 type SetEdit = (fn: (e: EditState) => EditState, undo?: boolean) => void
 
 // ───────── AI prompt commands ─────────
-function AiCommand({ ep, lang, setEdit }: { ep: Episode; lang: string; setEdit: SetEdit }) {
+function AiCommand({ ep, lang }: { ep: Episode; lang: string }) {
   const { t } = useTranslation()
   const [prompt, setPrompt] = useState('')
   const [busy, setBusy] = useState(false)
-  const [plan, setPlan] = useState<Plan | null>(null)
+  const [plan, setPlan] = useState<EditPlan | null>(null)
   const project = useProject((s) => s.project!)
+
+  const [allProgress, setAllProgress] = useState<string | null>(null)
+  const epCount = project.episodes.filter((e) => e.videoPath && e.segments.length).length
 
   const run = async () => {
     if (!prompt.trim()) return
     setBusy(true)
     setPlan(null)
     try {
-      const silences = await detectSilences(ep.id).catch(() => [])
-      const { provider, model } = llmChoice(project.settings.translator)
-      const r = await post<Plan>('/ai/edit', {
-        prompt,
-        provider,
-        model,
-        durationSec: ep.durationSec,
-        lines: sortSegments(ep.segments).map((x) => ({
-          id: x.id,
-          start: x.start,
-          end: x.end,
-          text: x.textOriginal || x.textTarget,
-          speaker: project.cast.find((a) => a.id === x.actorId)?.label
-        })),
-        silences,
-        clips: effectiveClips(ep.edit),
-        aspect: ep.edit.aspect
-      })
-      setPlan(r)
+      setPlan(await planEpisodeEdit(ep.id, prompt))
     } catch (e) {
       notify(e)
     } finally {
@@ -180,19 +157,30 @@ function AiCommand({ ep, lang, setEdit }: { ep: Episode; lang: string; setEdit: 
 
   const apply = () => {
     if (!plan) return
-    setEdit((e) => ({
-      ...e,
-      ...(plan.keep.length ? { clips: plan.keep.map((k) => ({ id: newClipId(), start: k.start, end: k.end })), removed: [] } : {}),
-      ...(plan.aspect ? { aspect: plan.aspect as Aspect } : {}),
-      ...(plan.fadeIn !== undefined && plan.fadeIn > 0 ? { fadeIn: plan.fadeIn } : {}),
-      ...(plan.fadeOut !== undefined && plan.fadeOut > 0 ? { fadeOut: plan.fadeOut } : {})
-    }))
-    if (plan.captionPreset && CAPTION_PRESETS[plan.captionPreset]) {
-      mutate((p) => ({ ...p, settings: { ...p.settings, burnSubtitles: true, captions: { ...p.settings.captions, ...CAPTION_PRESETS[plan.captionPreset!], preset: plan.captionPreset! } } }))
-    }
+    applyEditPlan(ep.id, plan)
     useUi.getState().set({ previewEdit: true })
     setPlan(null)
     toast.success(t('editor.applied', 'Edit applied — press Space to preview'))
+  }
+
+  // the same command on every episode, applied directly (each episode's edit can still be undone / reset)
+  const runAll = async () => {
+    if (!prompt.trim()) return
+    if (!confirm(t('editor.allConfirm', 'Apply this AI edit to all {{n}} episodes that have lines? Each episode’s current cuts are replaced.', { n: epCount }))) return
+    setBusy(true)
+    setPlan(null)
+    try {
+      const r = await editAllEpisodes(prompt, (done, total, label) =>
+        setAllProgress(done < total ? t('editor.allProgress', '{{label}} ({{k}} of {{n}})…', { label, k: done + 1, n: total }) : null)
+      )
+      if (r.ok) toast.success(t('editor.allDone', 'AI edit applied to {{n}} episodes', { n: r.ok }))
+      if (r.skipped.length) toast.info(t('editor.allSkipped', 'Skipped (no video or lines yet): {{list}}', { list: r.skipped.join(', ') }))
+    } catch (e) {
+      notify(e)
+    } finally {
+      setBusy(false)
+      setAllProgress(null)
+    }
   }
 
   const newDur = plan?.keep.length ? totalDuration(plan.keep) : null
@@ -219,6 +207,12 @@ function AiCommand({ ep, lang, setEdit }: { ep: Episode; lang: string; setEdit: 
           <Button size="sm" onClick={run} disabled={busy || !prompt.trim()}>
             {busy ? <Loader2 className="animate-spin" /> : <Wand2 />} {t('editor.plan', 'Plan edit (Ctrl+Enter)')}
           </Button>
+          {epCount > 1 && (
+            <Button size="sm" variant="outline" onClick={runAll} disabled={busy || !prompt.trim()} title={t('editor.allHint', 'Plan and apply this command for every episode, one by one')}>
+              <Layers /> {t('editor.all', 'Apply to all {{n}} episodes', { n: epCount })}
+            </Button>
+          )}
+          {allProgress && <span className="text-xs text-muted-foreground">{allProgress}</span>}
           {!ep.segments.length && <span className="text-xs text-warning">{t('editor.needTranscript', 'Tip: transcribe first so the AI can read what is said')}</span>}
         </div>
         {plan && (

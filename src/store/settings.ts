@@ -39,6 +39,8 @@ interface SettingsState {
   exportResolution: number
   /** Export → split into parts of N minutes; 0 = full video */
   exportSplitMinutes: number
+  /** Export → AI title, description & hashtags (.txt next to the video) */
+  exportAiMeta: boolean
   /** make dubbing lines (Listen + Read, then translate) as soon as a video is imported */
   autoLines: boolean
   set: (patch: Partial<Omit<SettingsState, 'set' | 'addRecent'>>) => void
@@ -75,6 +77,7 @@ export const useSettings = create<SettingsState>()(
       bigPlayer: false,
       exportResolution: 0,
       exportSplitMinutes: 0,
+      exportAiMeta: false,
       autoLines: true,
       set: (patch) => set(patch),
       addRecent: (r) =>

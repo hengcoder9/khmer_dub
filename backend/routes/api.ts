@@ -11,6 +11,7 @@ import { cacheDir } from '../lib/paths'
 import { allowFile } from '../lib/allow'
 import { shortenLine } from '../pipeline/translate'
 import { planEdit, type AiEditRequest } from '../pipeline/aiedit'
+import { planCreate, writeMeta, type CreatorRequest } from '../pipeline/aicreate'
 import { allVoices, createCloneVoice, deleteCloneVoice, edgeVoices } from '../pipeline/voices'
 import { previewVoice } from '../pipeline/tts'
 import { cudaInfo, engineStatus, hasNvidia } from '../pipeline/pysetup'
@@ -43,6 +44,8 @@ export async function apiRoutes(app: FastifyInstance) {
   // AI helpers
   app.post<{ Body: Parameters<typeof shortenLine>[0] }>('/ai/shorten', async (req) => ({ text: await shortenLine(req.body) }))
   app.post<{ Body: AiEditRequest }>('/ai/edit', async (req) => planEdit(req.body))
+  app.post<{ Body: CreatorRequest }>('/ai/create', async (req) => planCreate(req.body))
+  app.post<{ Body: Parameters<typeof writeMeta>[0] }>('/ai/meta', async (req) => writeMeta(req.body))
 
   // voices
   app.get<{ Querystring: { refresh?: string } }>('/voices', async (req) => {

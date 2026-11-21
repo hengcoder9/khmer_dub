@@ -1,7 +1,8 @@
 // Renderer-side orchestration: build job payloads from project state, apply results back (undoable).
 
 import { toast } from 'sonner'
-import type { Actor, Episode, MediaInfo, Segment, SttEngine, Translator, Voice } from '@shared/types'
+import type { Actor, Aspect, Episode, MediaInfo, Segment, SttEngine, Translator, Voice } from '@shared/types'
+import { CAPTION_PRESETS } from '@shared/captions'
 import type { RawSeg } from '@shared/segments'
 import type { TResult } from '@shared/translate'
 import { actorStats, autoMatchVoices, matchSpeakers, tidyCast } from '@shared/cast'
@@ -585,9 +586,26 @@ export interface ExportOptions {
   resolution?: number
   /** split into parts of this many minutes (EP01, EP02…); 0/undefined = one full video */
   splitMinutes?: number
+  /** AI writes a title, description and hashtags, saved as "<video>.txt" */
+  aiMeta?: boolean
 }
 
-export async function exportEpisode(opts: ExportOptions, epId?: string) {
+export interface UploadMeta {
+  title: string
+  description: string
+  hashtags: string[]
+}
+
+/** Export a short / trailer / recap made by the AI Creator instead of the episode's own edit. */
+export interface ExportExtra {
+  clips: Array<{ start: number; end: number }>
+  aspect: Aspect
+  /** appended to the file name, e.g. "Short01", "Trailer" */
+  suffix: string
+  meta?: UploadMeta
+}
+
+export async function exportEpisode(opts: ExportOptions, epId?: string, extra?: ExportExtra) {
   let e = ep(epId)
   needVideo(e)
   const p = P().project!
@@ -601,8 +619,8 @@ export async function exportEpisode(opts: ExportOptions, epId?: string) {
   // an empty cue list used to write blank .srt/.vtt/.ass files and still mark the episode exported
   const cues = episodeCues(e, p.settings.captions.source)
   const wantsSubs = opts.srt || opts.vtt || opts.ass || opts.burn
-  const clips = effectiveClips(e.edit)
-  const editOn = opts.applyEdit && e.edit.enabled
+  const clips = extra ? extra.clips.map((c) => ({ id: newClipId(), start: c.start, end: c.end })) : effectiveClips(e.edit)
+  const editOn = !!extra || (opts.applyEdit && e.edit.enabled)
   // lines can all sit in parts the video edit cuts out — that also gave a blank .srt with no explanation
   const kept = editOn ? mapCuesToOutput(cues, clips).length : cues.length
   if (wantsSubs && !kept) {
@@ -612,6 +630,13 @@ export async function exportEpisode(opts: ExportOptions, epId?: string) {
     if (!opts.mp4) throw new Error(why)
     toast.warning(`${why} — exporting the video without subtitles`)
     opts = { ...opts, srt: false, vtt: false, ass: false, burn: false }
+  }
+  let meta = extra?.meta
+  if (!meta && opts.aiMeta) {
+    meta = await episodeMeta(e.id).catch((err) => {
+      toast.warning('AI title / hashtags skipped: ' + (err as Error).message)
+      return undefined
+    })
   }
   const r = await runJob<{ files: string[] }>(
     'export',
@@ -624,7 +649,7 @@ export async function exportEpisode(opts: ExportOptions, epId?: string) {
       mixPath,
       outDir: opts.outDir,
       // keep names short: long downloaded titles pushed paths past Windows' 260-char limit (Explorer/players can't open them)
-      baseName: `${p.name.trim().slice(0, 60).trim()}_${e.label}`
+      baseName: `${p.name.trim().slice(0, 60).trim()}_${e.label}${extra ? `_${extra.suffix}` : ''}`
         .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
         .trim()
         .replace(/[. ]+$/, '') || 'export',
@@ -632,7 +657,11 @@ export async function exportEpisode(opts: ExportOptions, epId?: string) {
       captions: p.settings.captions,
       captionLang: p.settings.captions.source === 'target' ? p.settings.targetLang : p.settings.sourceLang || 'en',
       burn: opts.burn,
-      edit: editOn ? { clips, aspect: e.edit.aspect, fitMode: e.edit.fitMode, fadeIn: e.edit.fadeIn, fadeOut: e.edit.fadeOut } : undefined,
+      edit: extra
+        ? { clips, aspect: extra.aspect, fitMode: 'blur', fadeIn: 0.2, fadeOut: 0.4 }
+        : editOn
+          ? { clips, aspect: e.edit.aspect, fitMode: e.edit.fitMode, fadeIn: e.edit.fadeIn, fadeOut: e.edit.fadeOut }
+          : undefined,
       outputs: {
         mp4: opts.mp4,
         srt: opts.srt,
@@ -645,15 +674,143 @@ export async function exportEpisode(opts: ExportOptions, epId?: string) {
       fps: e.media?.video?.fps,
       muteOriginal: p.settings.muteOriginal && !opts.originalAudio,
       resolution: opts.resolution || undefined,
-      splitMinutes: opts.splitMinutes || undefined,
+      splitMinutes: extra ? undefined : opts.splitMinutes || undefined,
+      meta,
       sourceNote: sourceNote(),
       watermark: p.settings.watermark
     },
     e.id
   )
-  updateEpisode(e.id, (x) => ({ ...x, status: 'exported', exports: r.files }), { undo: false })
+  // a short / trailer is an extra: it doesn't replace the episode's own export
+  if (!extra) updateEpisode(e.id, (x) => ({ ...x, status: 'exported', exports: r.files }), { undo: false })
   return r.files
 }
+
+// ───────── AI Creator ─────────
+
+export type CreatorMode = 'shorts' | 'trailer' | 'recap'
+export interface CreatorItem extends UploadMeta {
+  hook: string
+  keep: Array<{ start: number; end: number }>
+}
+
+/** What the AI reads: every line with its time (original words; the AI writes the upload text in the dub language). */
+function creatorLines(e: Episode) {
+  const p = P().project!
+  return sortSegments(e.segments)
+    .map((s) => ({ start: s.start, end: s.end, text: (s.textOriginal || s.textTarget).trim(), speaker: p.cast.find((a) => a.id === s.actorId)?.label }))
+    .filter((l) => l.text)
+}
+
+const aiModel = () => llmChoice(P().project!.settings.translator)
+
+/** AI Creator: propose shorts / a trailer / a recap for an episode (the user reviews them before export). */
+export async function planCreator(epId: string, mode: CreatorMode, o: { count: number; seconds: number; note?: string }): Promise<CreatorItem[]> {
+  const e = ep(epId)
+  const p = P().project!
+  const r = await post<{ items: CreatorItem[] }>('/ai/create', {
+    mode,
+    ...aiModel(),
+    durationSec: e.durationSec,
+    lines: creatorLines(e),
+    count: o.count,
+    seconds: o.seconds,
+    metaLang: p.settings.targetLang,
+    series: p.name,
+    episode: e.label,
+    note: o.note?.trim() || undefined
+  })
+  return r.items
+}
+
+/** AI title / description / hashtags for a whole episode. */
+export async function episodeMeta(epId: string): Promise<UploadMeta> {
+  const e = ep(epId)
+  const p = P().project!
+  if (!e.segments.length) throw new Error(`${e.label} has no lines yet`)
+  return post<UploadMeta>('/ai/meta', { ...aiModel(), lines: creatorLines(e), metaLang: p.settings.targetLang, series: p.name, episode: e.label })
+}
+
+export interface EditPlan {
+  summary: string
+  keep: Array<{ start: number; end: number; reason?: string }>
+  aspect?: Aspect | ''
+  fadeIn?: number
+  fadeOut?: number
+  captionPreset?: string
+}
+
+/** Ask the AI for an edit plan for one episode (the AI edit command). */
+export async function planEpisodeEdit(epId: string, prompt: string): Promise<EditPlan> {
+  const e = ep(epId)
+  const p = P().project!
+  const silences = await detectSilences(e.id).catch(() => [])
+  return post<EditPlan>('/ai/edit', {
+    prompt,
+    ...aiModel(),
+    durationSec: e.durationSec,
+    lines: sortSegments(e.segments).map((x) => ({
+      id: x.id,
+      start: x.start,
+      end: x.end,
+      text: x.textOriginal || x.textTarget,
+      speaker: p.cast.find((a) => a.id === x.actorId)?.label
+    })),
+    silences,
+    clips: effectiveClips(e.edit),
+    aspect: e.edit.aspect
+  })
+}
+
+/** Apply an approved edit plan to an episode (cuts, order, format, fades; the caption style is project-wide). */
+export function applyEditPlan(epId: string, plan: EditPlan) {
+  updateEpisode(epId, (x) => {
+    const base = x.edit.clips.length ? x.edit : { ...x.edit, clips: [{ id: newClipId(), start: 0, end: x.durationSec }] }
+    return {
+      ...x,
+      edit: {
+        ...base,
+        ...(plan.keep.length ? { clips: plan.keep.map((k) => ({ id: newClipId(), start: k.start, end: k.end })), removed: [] } : {}),
+        ...(plan.aspect ? { aspect: plan.aspect as Aspect } : {}),
+        ...(plan.fadeIn !== undefined && plan.fadeIn > 0 ? { fadeIn: plan.fadeIn } : {}),
+        ...(plan.fadeOut !== undefined && plan.fadeOut > 0 ? { fadeOut: plan.fadeOut } : {}),
+        enabled: true
+      }
+    }
+  })
+  if (plan.captionPreset && CAPTION_PRESETS[plan.captionPreset]) {
+    const preset = plan.captionPreset
+    mutate((pp) => ({ ...pp, settings: { ...pp.settings, burnSubtitles: true, captions: { ...pp.settings.captions, ...CAPTION_PRESETS[preset], preset } } }))
+  }
+}
+
+/**
+ * Apply to all episodes: the same AI edit command, planned and applied for every episode that has a video and
+ * lines, one at a time. Failures are reported and skipped.
+ */
+export async function editAllEpisodes(
+  prompt: string,
+  onProgress?: (done: number, total: number, label: string) => void
+): Promise<{ ok: number; failed: number; skipped: string[] }> {
+  const eps = P().project!.episodes
+  const ready = eps.filter((e) => e.videoPath && e.segments.length)
+  const skipped = eps.filter((e) => !ready.includes(e)).map((e) => e.label)
+  let ok = 0
+  let failed = 0
+  for (const [i, e] of ready.entries()) {
+    onProgress?.(i, ready.length, e.label)
+    try {
+      applyEditPlan(e.id, await planEpisodeEdit(e.id, prompt))
+      ok++
+    } catch (err) {
+      failed++
+      toast.error(`${e.label}: ${(err as Error).message}`)
+    }
+  }
+  onProgress?.(ready.length, ready.length, '')
+  return { ok, failed, skipped }
+}
+
 
 export const editedDuration = (e: Episode) => (e.edit.enabled ? outputDuration(effectiveClips(e.edit)) : e.durationSec)
 

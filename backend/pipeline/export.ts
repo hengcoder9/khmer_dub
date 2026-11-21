@@ -6,6 +6,7 @@ import { clipSpeed, layoutClips, mapCuesToOutput, outputDuration, outputSize, tr
 import { toAss } from '../../shared/captions'
 import { runFfmpeg, runFfprobe, probeMedia } from '../lib/ffmpeg'
 import { cuesForPart, partName, partRanges, planParts } from '../../shared/split'
+import { metaText, type UploadMeta } from './aicreate'
 import { detectEncoder } from '../lib/checks'
 import { fontsDir } from '../lib/paths'
 import { ffFail } from './extract'
@@ -40,6 +41,8 @@ export interface ExportPayload {
   watermark?: Watermark
   /** split the export into parts of this many minutes ("… EP01", "… EP02"…); 0/missing = one full video */
   splitMinutes?: number
+  /** AI upload text (title, description, hashtags), saved as "<video>.txt" (one per part when splitting) */
+  meta?: UploadMeta
 }
 
 /** ffmpeg overlay position for a watermark corner (m = margin in px). */
@@ -156,6 +159,7 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
   if (splitting && !p.outputs.mp4) files.push(...writePartTexts(p, cues, partRanges(outDur, cuts), base, size))
   if (!splitting && p.outputs.srt) writeFileSync(`${base}.srt`, serializeSrt(cues), 'utf8'), files.push(`${base}.srt`)
   if (!splitting && p.outputs.vtt) writeFileSync(`${base}.vtt`, serializeVtt(cues), 'utf8'), files.push(`${base}.vtt`)
+  if (!splitting && p.meta) writeFileSync(`${base}.txt`, metaText(p.meta), 'utf8'), files.push(`${base}.txt`)
   if (!splitting && p.outputs.ass) writeFileSync(`${base}.ass`, ass, 'utf8'), files.push(`${base}.ass`)
   if (p.outputs.dubWav && existsSync(p.outputs.dubWav)) copyFileSync(p.outputs.dubWav, `${base}_voice.wav`), files.push(`${base}_voice.wav`)
   if (p.outputs.instrumental && existsSync(p.outputs.instrumental)) copyFileSync(p.outputs.instrumental, `${base}_instrumental.wav`), files.push(`${base}_instrumental.wav`)
@@ -301,7 +305,7 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
 function removeOldParts(dir: string, baseName: string) {
   const prefix = `${baseName} EP`
   for (const f of readdirSync(dir)) {
-    if (f.startsWith(prefix) && /^\d+\.(mp4|srt|vtt|ass)$/i.test(f.slice(prefix.length))) {
+    if (f.startsWith(prefix) && /^\d+\.(mp4|srt|vtt|ass|txt)$/i.test(f.slice(prefix.length))) {
       try { unlinkSync(join(dir, f)) } catch {}
     }
   }
@@ -316,6 +320,7 @@ function writePartTexts(p: ExportPayload, cues: Cue[], ranges: Array<{ start: nu
     if (p.outputs.srt) writeFileSync(`${name}.srt`, serializeSrt(pc), 'utf8'), out.push(`${name}.srt`)
     if (p.outputs.vtt) writeFileSync(`${name}.vtt`, serializeVtt(pc), 'utf8'), out.push(`${name}.vtt`)
     if (p.outputs.ass) writeFileSync(`${name}.ass`, toAss(pc, p.captions, size.w, size.h, p.captionLang), 'utf8'), out.push(`${name}.ass`)
+    if (p.meta) writeFileSync(`${name}.txt`, metaText(p.meta, { index: i + 1, count: ranges.length }), 'utf8'), out.push(`${name}.txt`)
   })
   return out
 }

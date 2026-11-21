@@ -35,7 +35,8 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
     originalAudio: false,
     cpu: false,
     resolution: useSettings.getState().exportResolution,
-    splitMinutes: useSettings.getState().exportSplitMinutes
+    splitMinutes: useSettings.getState().exportSplitMinutes,
+    aiMeta: useSettings.getState().exportAiMeta
   })
   useEffect(() => {
     if (ep) {
@@ -165,6 +166,14 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
             <Checkbox checked={o.remix} onChange={(v) => set({ remix: v })} label={t('export.remix', 'Re-mix audio before export')} />
             <Checkbox checked={o.originalAudio} onChange={(v) => set({ originalAudio: v })} label={t('export.original', 'Keep original audio (no dub)')} />
             <Checkbox checked={o.cpu} onChange={(v) => set({ cpu: v })} label={t('export.cpu', 'Use CPU encoder (slower)')} />
+            <Checkbox
+              checked={!!o.aiMeta}
+              onChange={(v) => {
+                set({ aiMeta: v })
+                useSettings.getState().set({ exportAiMeta: v })
+              }}
+              label={t('export.aiMeta', 'AI title, description & hashtags (.txt)')}
+            />
           </div>
 
           {running.length > 0 && (

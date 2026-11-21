@@ -529,3 +529,35 @@ export.splitFull	វីដេអូពេញ (មិនបំបែក)
 export.splitParts	{{n}} ភាគ
 export.splitShort	ខ្លីជាងនេះ — នៅតែ 1 វីដេអូ
 export.splitEvery	រៀងរាល់ {{m}} នាទី
+creator.title	អ្នកបង្កើត AI
+creator.subtitle	វីដេអូខ្លី ទ្រេលឡឺ និងសង្ខេប ពីភាគនេះ
+creator.shorts	វីដេអូខ្លី
+creator.trailer	ទ្រេលឡឺ
+creator.recap	សង្ខេបរឿង
+creator.count	{{n}} វីដេអូខ្លី
+creator.howMany	ចំនួន
+creator.sec	ប្រហែល {{s}} វិនាទី
+creator.length	រយៈពេលវីដេអូនីមួយៗ
+creator.format	ទម្រង់
+creator.sourceFormat	ដូចវីដេអូដើម
+creator.notePh	ជម្រើស៖ ផ្តោតលើអ្វី ឧ. «ឈុតវាយគ្នា» ឬ «រឿងស្នេហា»
+creator.planShorts	ស្វែងរកគ្រាល្អបំផុត
+creator.planTrailer	បង្កើតទ្រេលឡឺ
+creator.planRecap	បង្កើតសង្ខេប
+creator.needLines	បង្កើតឃ្លាជាមុនសិន ដើម្បីឱ្យ AI អានរឿងបាន
+creator.play	ចាក់ផ្នែកដំបូង
+creator.copy	ចម្លងចំណងជើង ការពិពណ៌នា និង hashtag
+creator.copied	បានចម្លង
+creator.hook	ចំណុចទាក់ទាញ
+creator.export	នាំចេញ {{n}} វីដេអូ
+creator.exportHint	វីដេអូនីមួយៗមាន .mp4, .srt និង .txt ដែលមានចំណងជើង ការពិពណ៌នា និង hashtag
+creator.exporting	កំពុងនាំចេញ {{k}} ក្នុងចំណោម {{n}}…
+creator.done	បាននាំចេញ {{n}} វីដេអូ (មាន .txt ចំណងជើង និង hashtag)
+creator.allFailed	មិនអាចនាំចេញវីដេអូណាមួយបានទេ
+editor.all	អនុវត្តលើភាគទាំង {{n}}
+editor.allHint	រៀបចំ និងអនុវត្តពាក្យបញ្ជានេះសម្រាប់ភាគនីមួយៗ ម្តងមួយៗ
+editor.allConfirm	អនុវត្តការកែ AI នេះលើភាគទាំង {{n}} ដែលមានឃ្លា? ការកាត់បច្ចុប្បន្នរបស់ភាគនីមួយៗនឹងត្រូវជំនួស។
+editor.allProgress	{{label}} ({{k}} ក្នុងចំណោម {{n}})…
+editor.allDone	បានអនុវត្តការកែ AI លើ {{n}} ភាគ
+editor.allSkipped	បានរំលង (មិនទាន់មានវីដេអូ ឬឃ្លា)៖ {{list}}
+export.aiMeta	ចំណងជើង ការពិពណ៌នា និង hashtag ដោយ AI (.txt)
