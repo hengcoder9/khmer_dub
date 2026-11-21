@@ -583,6 +583,8 @@ export interface ExportOptions {
   cpu: boolean
   /** short side in px; 0/undefined = original size */
   resolution?: number
+  /** split into parts of this many minutes (EP01, EP02…); 0/undefined = one full video */
+  splitMinutes?: number
 }
 
 export async function exportEpisode(opts: ExportOptions, epId?: string) {
@@ -643,6 +645,7 @@ export async function exportEpisode(opts: ExportOptions, epId?: string) {
       fps: e.media?.video?.fps,
       muteOriginal: p.settings.muteOriginal && !opts.originalAudio,
       resolution: opts.resolution || undefined,
+      splitMinutes: opts.splitMinutes || undefined,
       sourceNote: sourceNote(),
       watermark: p.settings.watermark
     },

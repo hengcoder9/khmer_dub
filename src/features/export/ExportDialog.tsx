@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox, Field, Input, Progress, Select } from '@/components/ui/controls'
 import { useSettings } from '@/store/settings'
 import { outputSize, RESOLUTIONS } from '@shared/ranges'
+import { planParts, SPLIT_MINUTES } from '@shared/split'
 import { useActiveEpisode, useProject, projectsRoot } from '@/store/project'
 import { useJobs } from '@/store/jobs'
 import { editedDuration, exportEpisode, notify, type ExportOptions } from '@/lib/pipeline'
@@ -33,7 +34,8 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
     remix: true,
     originalAudio: false,
     cpu: false,
-    resolution: useSettings.getState().exportResolution
+    resolution: useSettings.getState().exportResolution,
+    splitMinutes: useSettings.getState().exportSplitMinutes
   })
   useEffect(() => {
     if (ep) {
@@ -50,6 +52,8 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
   const voiced = ep.segments.filter((s) => s.audioPath).length
   const running = Object.values(jobs).filter((j) => j.episodeId === ep.id && (j.status === 'running' || j.status === 'queued'))
   const set = (p: Partial<ExportOptions>) => setO((x) => ({ ...x, ...p }))
+  const outLen = ep.edit.enabled && o.applyEdit ? editedDuration(ep) : ep.durationSec
+  const partsFor = (m: number) => (m ? planParts(outLen, m * 60).length + 1 : 1)
 
   const run = async () => {
     let outDir = o.outDir
@@ -123,6 +127,29 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
                 const name = r === 0 ? t('export.resOriginal', 'Original') : r === 2160 ? '2160p (4K)' : `${r}p`
                 const up = r > 0 && vw && vh && r > Math.min(vw, vh) ? ` — ${t('export.upscale', 'upscaled')}` : ''
                 return { value: String(r), label: `${name}  ·  ${sz.w}×${sz.h}${up}` }
+              })}
+            />
+          </Field>
+          <Field
+            label={t('export.split', 'Split into episodes')}
+            hint={
+              o.splitMinutes && partsFor(o.splitMinutes) > 1
+                ? t('export.splitHint', '{{n}} videos ("… EP01", "… EP02"…), each with its own subtitles. Cuts fall between subtitle lines.', { n: partsFor(o.splitMinutes) })
+                : undefined
+            }
+          >
+            <Select
+              className="w-full"
+              value={String(o.splitMinutes ?? 0)}
+              onChange={(v) => {
+                set({ splitMinutes: Number(v) })
+                useSettings.getState().set({ exportSplitMinutes: Number(v) })
+              }}
+              options={SPLIT_MINUTES.map((m) => {
+                if (m === 0) return { value: '0', label: t('export.splitFull', 'Full video (no split)') }
+                const n = partsFor(m)
+                const parts = n > 1 ? t('export.splitParts', '{{n}} parts', { n }) : t('export.splitShort', 'shorter than this — stays 1 video')
+                return { value: String(m), label: `${t('export.splitEvery', 'Every {{m}} minutes', { m })}  ·  ${parts}` }
               })}
             />
           </Field>

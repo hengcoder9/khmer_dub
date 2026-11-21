@@ -1,10 +1,11 @@
-import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Aspect, CaptionStyle, Clip, Watermark } from '../../shared/types'
 import { serializeSrt, serializeVtt, type Cue } from '../../shared/srt'
 import { clipSpeed, layoutClips, mapCuesToOutput, outputDuration, outputSize, transitionDur } from '../../shared/ranges'
 import { toAss } from '../../shared/captions'
-import { runFfmpeg, probeMedia } from '../lib/ffmpeg'
+import { runFfmpeg, runFfprobe, probeMedia } from '../lib/ffmpeg'
+import { cuesForPart, partName, partRanges, planParts } from '../../shared/split'
 import { detectEncoder } from '../lib/checks'
 import { fontsDir } from '../lib/paths'
 import { ffFail } from './extract'
@@ -37,6 +38,8 @@ export interface ExportPayload {
   sourceNote?: string
   /** logo image overlaid on the video */
   watermark?: Watermark
+  /** split the export into parts of this many minutes ("… EP01", "… EP02"…); 0/missing = one full video */
+  splitMinutes?: number
 }
 
 /** ffmpeg overlay position for a watermark corner (m = margin in px). */
@@ -143,11 +146,17 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
     .replace(/[. ]+$/, '') || 'export'
   const base = join(p.outDir, baseName)
 
-  // text outputs
-  if (p.outputs.srt) writeFileSync(`${base}.srt`, serializeSrt(cues), 'utf8'), files.push(`${base}.srt`)
-  if (p.outputs.vtt) writeFileSync(`${base}.vtt`, serializeVtt(cues), 'utf8'), files.push(`${base}.vtt`)
+  const cuts = planParts(outDur, (p.splitMinutes ?? 0) * 60, cues)
+  const splitting = cuts.length > 0
+  // parts from an earlier export of this episode (it may have had more parts)
+  if (splitting) removeOldParts(p.outDir, baseName)
+
+  // text outputs (per part when splitting — written after the video is cut, from the real part lengths)
   const ass = toAss(cues, p.captions, size.w, size.h, p.captionLang)
-  if (p.outputs.ass) writeFileSync(`${base}.ass`, ass, 'utf8'), files.push(`${base}.ass`)
+  if (splitting && !p.outputs.mp4) files.push(...writePartTexts(p, cues, partRanges(outDur, cuts), base, size))
+  if (!splitting && p.outputs.srt) writeFileSync(`${base}.srt`, serializeSrt(cues), 'utf8'), files.push(`${base}.srt`)
+  if (!splitting && p.outputs.vtt) writeFileSync(`${base}.vtt`, serializeVtt(cues), 'utf8'), files.push(`${base}.vtt`)
+  if (!splitting && p.outputs.ass) writeFileSync(`${base}.ass`, ass, 'utf8'), files.push(`${base}.ass`)
   if (p.outputs.dubWav && existsSync(p.outputs.dubWav)) copyFileSync(p.outputs.dubWav, `${base}_voice.wav`), files.push(`${base}_voice.wav`)
   if (p.outputs.instrumental && existsSync(p.outputs.instrumental)) copyFileSync(p.outputs.instrumental, `${base}_instrumental.wav`), files.push(`${base}_instrumental.wav`)
 
@@ -188,6 +197,7 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
 
     const r = await runFfmpeg(muxArgs, { durationSec: outDur, signal: ctx.signal, onProgress: (pct) => ctx.progress(pct, 'Muxing') })
     if (r.code === 0 && existsSync(out)) {
+      if (splitting) return { files: [...(await splitVideo(p, out, cuts, cues, base, size, ctx)), ...files] }
       files.unshift(out)
       return { files }
     }
@@ -264,6 +274,8 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
     '-/filter_complex', 'graph.txt',
     '-map', '[vout]', '-map', '[aout]',
     ...e,
+    // a keyframe exactly at every cut, so the parts can be split losslessly and frame-accurately
+    ...(splitting ? ['-force_key_frames', cuts.map((c) => c.toFixed(3)).join(',')] : []),
     '-c:a', 'aac', '-b:a', '192k',
     // the output is exactly as long as the (edited) video, whatever the audio length
     '-t', outDur.toFixed(3),
@@ -281,6 +293,82 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
   }
   try { rmSync(work, { recursive: true, force: true }) } catch {}
   if (r.code !== 0) throw ffFail('Export', r.stderr)
+  if (splitting) return { files: [...(await splitVideo(p, out, cuts, cues, base, size, ctx)), ...files] }
   files.unshift(out)
   return { files }
+}
+
+function removeOldParts(dir: string, baseName: string) {
+  const prefix = `${baseName} EP`
+  for (const f of readdirSync(dir)) {
+    if (f.startsWith(prefix) && /^\d+\.(mp4|srt|vtt|ass)$/i.test(f.slice(prefix.length))) {
+      try { unlinkSync(join(dir, f)) } catch {}
+    }
+  }
+}
+
+/** SRT / VTT / ASS for every part, each re-timed to start at 0. */
+function writePartTexts(p: ExportPayload, cues: Cue[], ranges: Array<{ start: number; end: number }>, base: string, size: { w: number; h: number }): string[] {
+  const out: string[] = []
+  ranges.forEach((r, i) => {
+    const name = partName(base, i, ranges.length)
+    const pc = cuesForPart(cues, r.start, r.end)
+    if (p.outputs.srt) writeFileSync(`${name}.srt`, serializeSrt(pc), 'utf8'), out.push(`${name}.srt`)
+    if (p.outputs.vtt) writeFileSync(`${name}.vtt`, serializeVtt(pc), 'utf8'), out.push(`${name}.vtt`)
+    if (p.outputs.ass) writeFileSync(`${name}.ass`, toAss(pc, p.captions, size.w, size.h, p.captionLang), 'utf8'), out.push(`${name}.ass`)
+  })
+  return out
+}
+
+async function durationOf(file: string): Promise<number> {
+  const r = await runFfprobe(['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1', file])
+  const d = Number(r.stdout.trim())
+  return Number.isFinite(d) ? d : 0
+}
+
+/**
+ * Cut the finished video into "… EP01.mp4", "… EP02.mp4"… without re-encoding (stream copy at the cut keyframes),
+ * then write each part's subtitles from its real length. The full video is removed once all parts exist.
+ */
+async function splitVideo(p: ExportPayload, full: string, cuts: number[], cues: Cue[], base: string, size: { w: number; h: number }, ctx: JobCtx): Promise<string[]> {
+  ctx.progress(99, `Splitting into ${cuts.length + 1} parts`)
+  const count = cuts.length + 1
+  const width = Math.max(2, String(count).length)
+  // the segment pattern is relative (run inside outDir) and ASCII: a "%" in the folder or a Unicode name can't break it
+  const tmp = `_kd_part_%0${width}d.mp4`
+  const r = await runFfmpeg(
+    [
+      '-y', '-i', full,
+      '-map', '0', '-c', 'copy',
+      '-f', 'segment',
+      '-segment_times', cuts.map((c) => c.toFixed(3)).join(','),
+      '-reset_timestamps', '1',
+      '-avoid_negative_ts', 'make_zero',
+      '-segment_format_options', 'movflags=+faststart',
+      '-segment_start_number', '1',
+      tmp
+    ],
+    { signal: ctx.signal, cwd: p.outDir }
+  )
+  const made = readdirSync(p.outDir).filter((f) => /^_kd_part_\d+\.mp4$/.test(f)).sort()
+  if (r.code !== 0 || !made.length) {
+    for (const f of made) try { unlinkSync(join(p.outDir, f)) } catch {}
+    throw ffFail('Split into episodes', r.stderr)
+  }
+  // real part lengths (on the copy path the cuts land on the nearest keyframe)
+  const ranges: Array<{ start: number; end: number }> = []
+  const videos: string[] = []
+  let t = 0
+  for (let i = 0; i < made.length; i++) {
+    const src = join(p.outDir, made[i])
+    const d = await durationOf(src)
+    ranges.push({ start: t, end: t + d })
+    t += d
+    const dest = `${partName(base, i, made.length)}.mp4`
+    renameSync(src, dest)
+    videos.push(dest)
+  }
+  try { unlinkSync(full) } catch {}
+  ctx.progress(100, `${videos.length} parts`)
+  return [...videos, ...writePartTexts(p, cues, ranges, base, size)]
 }

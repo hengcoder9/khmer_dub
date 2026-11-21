@@ -523,3 +523,9 @@ link.none	មិនជ្រើសទាំងអស់
 link.all	ជ្រើសទាំងអស់
 link.quality	គុណភាព
 link.downloadN	ទាញយក {{n}} និងបន្ថែមភាគ
+export.split	បំបែកជាភាគ
+export.splitHint	វីដេអូ {{n}} («… EP01», «… EP02»…) នីមួយៗមានអក្សររត់ផ្ទាល់ខ្លួន។ ការកាត់ធ្លាក់ចន្លោះឃ្លាអក្សររត់។
+export.splitFull	វីដេអូពេញ (មិនបំបែក)
+export.splitParts	{{n}} ភាគ
+export.splitShort	ខ្លីជាងនេះ — នៅតែ 1 វីដេអូ
+export.splitEvery	រៀងរាល់ {{m}} នាទី
