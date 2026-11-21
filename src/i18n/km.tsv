@@ -561,3 +561,10 @@ editor.allProgress	{{label}} ({{k}} ក្នុងចំណោម {{n}})…
 editor.allDone	បានអនុវត្តការកែ AI លើ {{n}} ភាគ
 editor.allSkipped	បានរំលង (មិនទាន់មានវីដេអូ ឬឃ្លា)៖ {{list}}
 export.aiMeta	ចំណងជើង ការពិពណ៌នា និង hashtag ដោយ AI (.txt)
+polish.title	កែសម្រួលសម្រាប់សំឡេង (Claude)៖ លេខ ពាក្យអង់គ្លេស និងសញ្ញា អានតាមរបៀបខ្មែរ
+polish.short	កែសំឡេង
+polish.label	កែសម្រួលសម្រាប់សំឡេង (Claude) — អក្សររត់មិនផ្លាស់ប្តូរ
+polish.selected	ឃ្លាដែលបានជ្រើស ({{n}})
+polish.new	ឃ្លាទាំងអស់ដែលមិនទាន់កែ
+polish.all	កែគ្រប់ឃ្លាម្តងទៀត
+polish.auto	កែដោយស្វ័យប្រវត្តិមុនបង្កើតសំឡេង

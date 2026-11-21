@@ -41,6 +41,8 @@ interface SettingsState {
   exportSplitMinutes: number
   /** Export → AI title, description & hashtags (.txt next to the video) */
   exportAiMeta: boolean
+  /** polish each Khmer line for the voice (Claude) right before generating voices */
+  polishVoice: boolean
   /** make dubbing lines (Listen + Read, then translate) as soon as a video is imported */
   autoLines: boolean
   set: (patch: Partial<Omit<SettingsState, 'set' | 'addRecent'>>) => void
@@ -78,6 +80,7 @@ export const useSettings = create<SettingsState>()(
       exportResolution: 0,
       exportSplitMinutes: 0,
       exportAiMeta: false,
+      polishVoice: false,
       autoLines: true,
       set: (patch) => set(patch),
       addRecent: (r) =>

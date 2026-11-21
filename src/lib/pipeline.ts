@@ -3,6 +3,7 @@
 import { toast } from 'sonner'
 import type { Actor, Aspect, Episode, MediaInfo, Segment, SttEngine, Translator, Voice } from '@shared/types'
 import { CAPTION_PRESETS } from '@shared/captions'
+import { needsPolish, spokenText } from '@shared/voicetext'
 import type { RawSeg } from '@shared/segments'
 import type { TResult } from '@shared/translate'
 import { actorStats, autoMatchVoices, matchSpeakers, tidyCast } from '@shared/cast'
@@ -484,8 +485,16 @@ export async function generateVoices(ids?: string[], epId?: string) {
   const st = p.settings
   const sorted = sortSegments(e.segments)
   const want = ids?.length ? new Set(ids) : null
-  const targets = sorted.filter((s) => (!want || want.has(s.id)) && s.textTarget.trim())
+  let targets = sorted.filter((s) => (!want || want.has(s.id)) && s.textTarget.trim())
   if (!targets.length) throw new Error('No translated lines to voice')
+  // "Polish for voice" first (numbers spelled out, Latin words in Khmer script…); a failure only skips it
+  if (S().polishVoice && targets.some(needsPolish)) {
+    await polishForVoice(targets.filter(needsPolish).map((s) => s.id), e.id, { quiet: true }).catch((err) =>
+      toast.warning('Polish for voice skipped: ' + (err as Error).message)
+    )
+    const fresh = new Map(ep(e.id).segments.map((s) => [s.id, s]))
+    targets = targets.map((s) => fresh.get(s.id) ?? s)
+  }
   const r = await runJob<{ results: Array<{ id: string; audioPath?: string; audioDur?: number; fitSpeed?: number; fitWarning?: boolean; error?: string }> }>(
     'tts',
     {
@@ -501,7 +510,7 @@ export async function generateVoices(ids?: string[], epId?: string) {
         const next = sorted[sorted.indexOf(s) + 1]
         return {
           id: s.id,
-          text: s.textTarget,
+          text: spokenText(s),
           voiceId: voiceFor(s, p.cast, st.targetLang),
           speed: Math.max(0.5, s.speed * st.globalSpeed),
           pitch: s.pitch + st.globalPitch,
@@ -968,3 +977,65 @@ export const newClipId = () => uid('c')
 
 // ───────── log ─────────
 export const appendLog = (name: string, lines: string[]) => post('/logs/append', { name, lines }).catch(() => {})
+
+// ───────── Polish for voice ─────────
+
+/** True when a Claude API key is saved (Settings → API Keys). */
+export async function hasClaudeKey(): Promise<boolean> {
+  try {
+    const keys = (await window.api.keys.list()) as Array<{ provider: string }>
+    return keys.some((k) => k.provider === 'claude')
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Claude rewrites each line into what the voice should SAY (numbers / dates / money as words, Latin words in Khmer
+ * script, no symbols, a little shorter when it can't fit its time). The subtitle is not changed. Without a Claude key
+ * the project's translator model is used. `ids` empty = every line that has no up-to-date spoken version.
+ */
+export async function polishForVoice(ids?: string[], epId?: string, o: { quiet?: boolean; force?: boolean } = {}) {
+  const e = ep(epId)
+  const p = P().project!
+  const want = ids?.length ? new Set(ids) : null
+  const lines = sortSegments(e.segments).filter((s) => (want ? want.has(s.id) : true) && s.textTarget.trim() && (o.force || want || needsPolish(s)))
+  if (!lines.length) {
+    if (!o.quiet) toast.info('Every line is already polished for voice')
+    return 0
+  }
+  const claude = await hasClaudeKey()
+  const { provider, model } = claude ? llmChoice('claude') : llmChoice(p.settings.translator)
+  if (!claude && !o.quiet) toast.info('No Claude key — polishing with your translator model instead (add a Claude key in Settings → API Keys)')
+  const r = await runJob<{ results: Array<{ id: string; spoken: string }>; missing: number }>(
+    'polish',
+    {
+      items: lines.map((s) => ({ id: s.id, text: s.textTarget, original: s.textOriginal || undefined, seconds: Math.max(0.3, s.end - s.start) })),
+      targetLang: p.settings.targetLang,
+      provider,
+      model
+    },
+    e.id
+  )
+  const byId = new Map(r.results.map((x) => [x.id, x.spoken]))
+  let changed = 0
+  updateEpisode(e.id, (x) => ({
+    ...x,
+    segments: x.segments.map((s) => {
+      const spoken = byId.get(s.id)
+      if (spoken === undefined) return s
+      const differs = spoken !== s.textTarget
+      if (differs) changed++
+      // the voice must be made again when what it says changes
+      const voiceStale = spokenText(s) !== (differs ? spoken : s.textTarget)
+      return {
+        ...s,
+        textSpoken: differs ? spoken : undefined,
+        spokenFor: s.textTarget,
+        ...(voiceStale ? { audioPath: undefined, audioDur: undefined, fitSpeed: undefined, fitWarning: undefined } : {})
+      }
+    })
+  }))
+  if (!o.quiet) toast.success(`Polished ${r.results.length} lines for voice — ${changed} changed${r.missing ? `, ${r.missing} skipped` : ''}`)
+  return changed
+}

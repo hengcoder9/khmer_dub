@@ -114,6 +114,10 @@ export interface Segment {
   fitSpeed?: number
   fitWarning?: boolean
   words?: Word[]
+  /** what the voice says when it differs from the subtitle (numbers spelled out, Latin words in Khmer script…) */
+  textSpoken?: string
+  /** the subtitle text `textSpoken` was made from; when the subtitle changes, the voice reads the subtitle again */
+  spokenFor?: string
 }
 
 export type Gender = 'male' | 'female' | 'unknown'

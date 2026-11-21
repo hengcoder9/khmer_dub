@@ -10,10 +10,15 @@ describe('voice variants', () => {
     expect(parseVoiceVariant('km-KH-PisethNeural#-14,0.95')).toEqual({ base: 'km-KH-PisethNeural', pitch: -14, rate: 0.95 })
     expect(parseVoiceVariant('km-KH-PisethNeural')).toEqual({ base: 'km-KH-PisethNeural', pitch: 0, rate: 1 })
   })
-  it('gives five different Khmer male voices', () => {
+  it('gives nine different Khmer male voices', () => {
     const piseth: Voice = { id: 'edge:km-KH-PisethNeural', engine: 'edge', name: 'Piseth (km-KH)', gender: 'male', locale: 'km-KH' }
     const v = withVariants(piseth)
-    expect(v.map((x) => x.name)).toEqual(['Piseth (km-KH)', 'Piseth – Deep (km-KH)', 'Piseth – Old (km-KH)', 'Piseth – Young (km-KH)', 'Piseth – Boy (km-KH)'])
+    expect(v.map((x) => x.name)).toEqual([
+      'Piseth (km-KH)', 'Piseth – Deep (km-KH)', 'Piseth – Old (km-KH)', 'Piseth – Young (km-KH)', 'Piseth – Boy (km-KH)',
+      'Piseth – Calm (km-KH)', 'Piseth – Strong (km-KH)', 'Piseth – Teen (km-KH)', 'Piseth – Grandpa (km-KH)'
+    ])
+    // every variant is a different sound (pitch, rate)
+    expect(new Set(v.map((x) => x.id)).size).toBe(9)
     const cast = ['A1', 'A2', 'A3'].map((id) => actor(id, 'male'))
     const ids = autoMatchVoices(cast, v, 'km').map((a) => a.voiceId)
     expect(new Set(ids).size).toBe(3)

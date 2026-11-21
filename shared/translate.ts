@@ -45,6 +45,14 @@ export function systemPrompt(targetLang: string, glossary: Glossary[]): string {
     `Translate each line into natural, spoken ${lang} that a voice actor can say aloud.`,
     'Keep it short enough to be spoken in roughly the same time as the original.',
     'Keep character names consistent with the glossary. Keep tone (angry, polite, joking).',
+    ...(targetLang === 'km'
+      ? [
+          'Khmer: write everyday spoken Khmer, not formal or written-style Khmer.',
+          'Choose pronouns and kinship terms from the relationship and tone (បង / អូន between partners and siblings, លោក / អ្នកនាង / អ្នក for strangers and superiors, ខ្ញុំ / យើង / ឯង / អញ when rude), and keep them consistent for the same pair of characters.',
+          'Write everything in Khmer script: no Latin letters; say English words the way Khmer speakers do.',
+          'Use natural Khmer sentence-final particles (ណា៎, ហើយ, ទេ, ចុះ) where a native speaker would.'
+        ]
+      : []),
     'Do not add explanations. Return ONLY JSON: [{"id":"...","khmer":"..."}] with exactly the same ids.',
     '(The "khmer" field holds the translation even when the target language is not Khmer.)',
     `Glossary:\n${g}`

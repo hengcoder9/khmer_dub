@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { Loader2, Minus, Play, Plus, Rows3, Sparkles, TriangleAlert, Volume2 } from 'lucide-react'
 import type { Actor, Segment, Voice } from '@shared/types'
 import { ACTOR_COLORS } from '@shared/defaults'
+import { spokenText } from '@shared/voicetext'
 import { patchSegments, sortSegments, updateSegments, useActiveEpisode, useProject } from '@/store/project'
 import { playerApi, useUi } from '@/store/ui'
 import { useVoices } from '@/lib/hooks'
@@ -140,8 +141,9 @@ const Row = memo(function Row({ s, index, selected, focused, editing, playing, c
               e.stopPropagation()
               setUi({ editingId: s.id })
             }}
-            title={s.textTarget}
+            title={spokenText(s) !== s.textTarget ? `${s.textTarget}\n🔊 ${spokenText(s)}` : s.textTarget}
           >
+            {spokenText(s) !== s.textTarget && <span className="mr-1 text-[11px] text-primary">🔊</span>}
             {s.textTarget || t('grid.untranslated', 'double-click to type the dub line')}
           </div>
         )}

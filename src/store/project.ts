@@ -134,7 +134,14 @@ function load(dir: string, project: Project) {
 export async function createProject(name: string, parentDir?: string) {
   const r = await post<{ dir: string; project: Project }>('/projects/create', { name, parentDir })
   load(r.dir, r.project)
-  return r
+  // with a Claude key saved, new projects translate with Claude (best Khmer); mutate() also saves the change
+  try {
+    const keys = (await window.api.keys.list()) as Array<{ provider: string }>
+    if (keys.some((k) => k.provider === 'claude')) mutate((p) => ({ ...p, settings: { ...p.settings, translator: 'claude' } }), { undo: false })
+  } catch {
+    /* keys unavailable: keep the default */
+  }
+  return { ...r, project: useProject.getState().project ?? r.project }
 }
 
 export async function openProject(path: string) {

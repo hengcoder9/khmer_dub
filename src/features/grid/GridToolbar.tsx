@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowDownUp, BookA, Combine, Languages, ListPlus, Replace, Scissors, Sparkles, Trash2, Tv } from 'lucide-react'
+import { ArrowDownUp, BookA, Combine, Languages, ListPlus, Mic, Replace, Scissors, Sparkles, Trash2, Tv } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownContent,
@@ -18,7 +18,8 @@ import {
 import { addEpisode, mutate, patchSegments, setActiveEpisode, sortSegments, updateSegments, useActiveEpisode, useProject } from '@/store/project'
 import { useUi } from '@/store/ui'
 import { newSegment } from '@shared/defaults'
-import { generateVoices, notify, translate } from '@/lib/pipeline'
+import { generateVoices, notify, polishForVoice, translate } from '@/lib/pipeline'
+import { useSettings } from '@/store/settings'
 import { CastPopover } from '@/features/cast/CastPopover'
 
 function FindReplace({ epId }: { epId: string }) {
@@ -91,6 +92,7 @@ export function GridToolbar({ filter, setFilter }: { filter: string; setFilter: 
   }, [])
   if (!ep || !project) return null
   const sel = [...selected]
+  const polishVoice = useSettings((s) => s.polishVoice)
   const warnCount = ep.segments.filter((s) => s.fitWarning).length
 
   const addLine = () => {
@@ -211,6 +213,30 @@ export function GridToolbar({ filter, setFilter }: { filter: string; setFilter: 
       <Button variant="ghost" size="sm" disabled={!sel.length} onClick={() => generateVoices(sel, ep.id).catch(notify)} title={t('grid.generateSel', 'Generate selected (Ctrl+Enter)')}>
         <Sparkles />
       </Button>
+      <DropdownMenu>
+        <DropdownTrigger asChild>
+          <Button variant={polishVoice ? 'secondary' : 'ghost'} size="sm" title={t('polish.title', 'Polish for voice (Claude): numbers, English words and symbols said the Khmer way')}>
+            <Mic /> {t('polish.short', 'Polish')}
+          </Button>
+        </DropdownTrigger>
+        <DropdownContent>
+          <DropdownLabel>{t('polish.label', 'Polish for voice (Claude) — subtitles stay the same')}</DropdownLabel>
+          <DropdownItem disabled={!sel.length} onSelect={() => polishForVoice(sel, ep.id).catch(notify)}>
+            {t('polish.selected', 'Selected lines ({{n}})', { n: sel.length })}
+          </DropdownItem>
+          <DropdownItem onSelect={() => polishForVoice(undefined, ep.id).catch(notify)}>{t('polish.new', 'All lines not polished yet')}</DropdownItem>
+          <DropdownItem onSelect={() => polishForVoice(undefined, ep.id, { force: true }).catch(notify)}>{t('polish.all', 'Polish every line again')}</DropdownItem>
+          <DropdownSeparator />
+          <DropdownItem
+            onSelect={(e) => {
+              e.preventDefault()
+              useSettings.getState().set({ polishVoice: !polishVoice })
+            }}
+          >
+            {polishVoice ? '☑' : '☐'} {t('polish.auto', 'Polish automatically before generating voices')}
+          </DropdownItem>
+        </DropdownContent>
+      </DropdownMenu>
       <Popover>
         <PopoverTrigger asChild>
           <Button variant="ghost" size="sm" title={t('grid.glossary', 'Glossary (character names)')}>

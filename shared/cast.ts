@@ -120,17 +120,26 @@ export function parseVoiceVariant(voice: string): { base: string; pitch: number;
 
 /** Character voices made from one base voice (Khmer has only one male and one female Edge voice). */
 export const VOICE_VARIANTS: Record<Gender, Array<[string, number, number]>> = {
+  // the first four keep their ids (pitch,rate) so voices already given to actors don't change
   male: [
     ['Deep', -14, 0.95],
     ['Old', -24, 0.9],
     ['Young', 12, 1.05],
-    ['Boy', 30, 1.08]
+    ['Boy', 30, 1.08],
+    ['Calm', -6, 0.93],
+    ['Strong', -9, 1.06],
+    ['Teen', 20, 1.06],
+    ['Grandpa', -32, 0.86]
   ],
   female: [
     ['Soft', -8, 0.95],
     ['Mature', -16, 0.92],
     ['Young', 14, 1.04],
-    ['Girl', 30, 1.08]
+    ['Girl', 30, 1.08],
+    ['Warm', -4, 0.97],
+    ['Bright', 6, 1.07],
+    ['Teen', 22, 1.06],
+    ['Grandma', -26, 0.87]
   ],
   unknown: []
 }
