@@ -500,3 +500,26 @@ wm.center	កណ្ដាល
 wm.size	ទំហំ
 wm.opacity	ភាពស្រអាប់
 wm.margin	គម្លាតពីគែម
+tools.burnOff2	បិទដុតអក្សរ — អក្សររត់ត្រូវបានលាក់លើវីដេអូ ហើយនឹងមិនដុតចូលទេ
+player.burnOn	ដុតអក្សរ បើក
+player.burnOff	ដុតអក្សរ បិទ
+player.burnHint	ដុតអក្សររត់ចូលវីដេអូនាំចេញ (បើក = បង្ហាញលើវីដេអូ, បិទ = លាក់)
+player.subtitlesHint	បង្ហាញ / លាក់អក្សររត់ក្នុងការមើលជាមុនប៉ុណ្ណោះ (មិនប្តូរការនាំចេញទេ)
+player.burnBadge	ដុតជាប់
+player.previewBadge	មើលជាមុនប៉ុណ្ណោះ
+link.desc2	បិទភ្ជាប់តំណវីដេអូដែលអ្នកជាម្ចាស់ ឬមានអាជ្ញាប័ណ្ណបញ្ចូលសំឡេង៖ ទំព័រវីដេអូ (YouTube, Facebook, TikTok… — វីដេអូរបស់អ្នកផ្ទាល់) បញ្ជីចាក់ ឯកសារវីដេអូផ្ទាល់ ឬតំណចែករំលែក Google Drive / Dropbox។ សេវាស្ទ្រីម / VIP ដែលការពារការចម្លង (iQIYI, WeTV, Tencent, DramaBox…) មិនគាំទ្រទេ។
+link.started	កំពុងទាញយកវីដេអូ {{n}} — វានឹងក្លាយជាភាគតាមលំដាប់ពេលទាញយករួច
+link.startedOne	កំពុងទាញយក — វានឹងក្លាយជាភាគថ្មីពេលទាញយករួច
+link.qBest	គុណភាពល្អបំផុត
+link.wholeList	ទាញយកបញ្ជីចាក់ទាំងមូល (វីដេអូនីមួយៗក្លាយជាភាគមួយ)
+link.gdrive	ឯកសារ Google Drive
+link.dropbox	ឯកសារ Dropbox
+link.direct	ឯកសារវីដេអូផ្ទាល់
+link.asIs	ទាញយកដូចដើម
+link.upTo	រហូតដល់
+link.live	មិនអាចនាំចូលការផ្សាយផ្ទាល់បានទេ
+link.videos	វីដេអូ
+link.none	មិនជ្រើសទាំងអស់
+link.all	ជ្រើសទាំងអស់
+link.quality	គុណភាព
+link.downloadN	ទាញយក {{n}} និងបន្ថែមភាគ

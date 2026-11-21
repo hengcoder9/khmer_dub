@@ -1,4 +1,5 @@
-// "Import Link": download a video file the user owns or is licensed to use (direct file, Google Drive, Dropbox).
+// "Import Link": download a video the user owns or is licensed to use.
+// Direct files, Google Drive and Dropbox are fetched as-is; other web pages go through yt-dlp (same flow as VidGrab).
 // Streaming / VIP platforms are refused on purpose: their episodes are licensed to them and copy-protected.
 
 import { createWriteStream, existsSync, mkdirSync } from 'node:fs'
@@ -7,10 +8,13 @@ import { join } from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { JobCtx } from '../queue'
+import { downloadArgs, explainError, parseLine, runYtdlp, type Quality } from './ytdlp'
 
 export interface DownloadPayload {
   url: string
   outDir: string
+  /** yt-dlp only (web page links) */
+  quality?: Quality
 }
 
 /** Paywalled / DRM streaming services (drama apps and video platforms). */
@@ -18,12 +22,12 @@ const BLOCKED = [
   'iq.com', 'iqiyi.com', 'wetv.vip', 'v.qq.com', 'qq.com', 'hongguoduanju.com', 'dramabox', 'goodshort',
   'youku.com', 'mgtv.com', 'bilibili.com', 'netflix.com', 'viu.com', 'disneyplus.com', 'primevideo.com', 'reelshort', 'shortmax', 'flextv'
 ]
-/** Need the platform's own download (e.g. YouTube Studio → Download) — not scraped here. */
-const PLATFORM = ['youtube.com', 'youtu.be', 'tiktok.com', 'facebook.com', 'fb.watch', 'instagram.com', 'douyin.com', 'kuaishou.com']
 
 const VIDEO_EXT = /\.(mp4|m4v|mkv|mov|webm|avi)$/i
 
-export function resolveLink(raw: string): { url: string; kind: 'direct' | 'gdrive' | 'dropbox' } {
+export type LinkKind = 'direct' | 'gdrive' | 'dropbox' | 'page'
+
+export function resolveLink(raw: string): { url: string; kind: LinkKind } {
   let u: URL
   try {
     u = new URL(raw.trim())
@@ -38,10 +42,6 @@ export function resolveLink(raw: string): { url: string; kind: 'direct' | 'gdriv
       `${host} is a streaming / VIP service: its episodes are licensed to that platform and copy-protected, so KhmerDub can't download them. Use video files you own or are licensed to dub.`
     )
   }
-  if (on(PLATFORM)) {
-    throw new Error(`Links to ${host} pages aren't downloaded here. If it's your own upload, download it from the platform (e.g. YouTube Studio → Download), then use Import Video or Import Folder.`)
-  }
-  if (/\.(m3u8|mpd)$/i.test(u.pathname)) throw new Error('Streaming playlists (HLS/DASH) are not supported — use a link to a video file.')
 
   if (host === 'drive.google.com' || host === 'docs.google.com') {
     const id = u.pathname.match(/\/d\/([\w-]{10,})/)?.[1] ?? u.searchParams.get('id')
@@ -53,7 +53,8 @@ export function resolveLink(raw: string): { url: string; kind: 'direct' | 'gdriv
     u.searchParams.set('dl', '1')
     return { url: u.toString(), kind: 'dropbox' }
   }
-  return { url: u.toString(), kind: 'direct' }
+  // a link to a video file → plain download; anything else (a video page, HLS playlist…) → yt-dlp
+  return { url: u.toString(), kind: VIDEO_EXT.test(u.pathname) ? 'direct' : 'page' }
 }
 
 function fileName(res: Response, kind: string): string {
@@ -66,13 +67,19 @@ function fileName(res: Response, kind: string): string {
   return name
 }
 
-export async function download(p: DownloadPayload, ctx: JobCtx): Promise<{ path: string }> {
+export async function download(p: DownloadPayload, ctx: JobCtx): Promise<{ path: string; title?: string }> {
   const { url, kind } = resolveLink(p.url)
+  if (kind === 'page') return downloadPage(url, p.outDir, p.quality ?? 'best', ctx)
   ctx.progress(0, 'Connecting')
   const res = await fetch(url, { redirect: 'follow', signal: ctx.signal, headers: { 'user-agent': 'KhmerDubStudio' } })
   if (!res.ok || !res.body) throw new Error(`Download failed: HTTP ${res.status} ${res.statusText}`)
   const type = (res.headers.get('content-type') ?? '').toLowerCase()
   if (type.includes('text/html')) {
+    // a "file" link that is really a page (e.g. a wiki File:… page): let yt-dlp find the video in it
+    if (kind === 'direct') {
+      await res.body.cancel().catch(() => {})
+      return downloadPage(url, p.outDir, p.quality ?? 'best', ctx)
+    }
     throw new Error(
       kind === 'gdrive'
         ? 'Google Drive returned a web page: make sure the file is shared as "Anyone with the link" and is a video.'
@@ -115,6 +122,63 @@ export async function download(p: DownloadPayload, ctx: JobCtx): Promise<{ path:
   }
   ctx.progress(100, `Downloaded ${(got / 1048576).toFixed(1)} MB`)
   return { path }
+}
+
+/** Web page link → yt-dlp (best/1080/720/480, mp4), with live progress. */
+async function downloadPage(url: string, outDir: string, quality: Quality, ctx: JobCtx): Promise<{ path: string; title?: string }> {
+  mkdirSync(outDir, { recursive: true })
+  ctx.progress(0, 'Starting yt-dlp')
+  let file: string | null = null
+  let title: string | undefined
+  let part = 0
+  let parts = 1
+  let best = 0
+  const fmt = (b: number | null) => (b == null ? '?' : `${(b / 1048576).toFixed(1)} MB`)
+  const r = await runYtdlp(downloadArgs(url, quality, outDir), {
+    cwd: outDir,
+    signal: ctx.signal,
+    onLine: (line) => {
+      const ev = parseLine(line)
+      if (!ev) return
+      switch (ev.type) {
+        case 'meta':
+          if (ev.title) title = ev.title
+          break
+        case 'parts':
+          parts = ev.count
+          break
+        case 'part':
+          part = Math.min(part + 1, parts)
+          break
+        case 'progress': {
+          let frac = ev.total ? (ev.downloaded ?? 0) / ev.total : null
+          if (frac == null && ev.fragCount) frac = (ev.fragIndex ?? 0) / ev.fragCount
+          if (ev.status === 'finished') frac = 1
+          if (frac != null) {
+            const k = Math.max(part, 1)
+            best = Math.max(best, Math.min(99, (((k - 1) + Math.min(frac, 1)) / Math.max(parts, k)) * 100))
+          }
+          const speed = ev.speed ? ` · ${(ev.speed / 1048576).toFixed(1)} MB/s` : ''
+          const eta = ev.eta != null ? ` · ${Math.round(ev.eta)}s left` : ''
+          const which = parts > 1 ? ` (${part === parts ? 'audio' : 'video'})` : ''
+          ctx.progress(best, `Downloading${which} ${fmt(ev.downloaded)} / ${fmt(ev.total)}${speed}${eta}`)
+          break
+        }
+        case 'postprocess':
+          if (ev.status === 'started') ctx.progress(best, /Merger/.test(ev.name) ? 'Merging video + audio' : 'Converting to MP4')
+          break
+        case 'file':
+          file = ev.path
+          break
+      }
+    }
+  })
+  if (!file || !existsSync(file)) {
+    const msg = r.errors[r.errors.length - 1] ?? r.tail.filter(Boolean).slice(-1)[0] ?? `yt-dlp exited with code ${r.code}`
+    throw new Error(explainError(msg))
+  }
+  ctx.progress(100, `Downloaded ${title ?? 'video'}`)
+  return { path: file, title }
 }
 
 export const isVideoName = (n: string) => VIDEO_EXT.test(n)

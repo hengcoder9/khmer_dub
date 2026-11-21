@@ -4,6 +4,7 @@ import { CAPTION_PRESETS } from '@shared/captions'
 import { Select, Slider, Switch, Toggle } from '@/components/ui/controls'
 import { mutate, useProject } from '@/store/project'
 import { cn } from '@/lib/utils'
+import { setBurnSubtitles } from '@/features/player/burn'
 
 const FONTS = ['Kantumruy Pro', 'Hanuman', 'Khmer UI', 'Leelawadee UI', 'Arial', 'Segoe UI', 'Impact', 'Tahoma']
 
@@ -38,7 +39,7 @@ export function CaptionStyleEditor() {
       <div className="flex items-center justify-between">
         <Switch
           checked={burn}
-          onChange={(v) => mutate((p) => ({ ...p, settings: { ...p.settings, burnSubtitles: v } }), { undo: false })}
+          onChange={(v) => setBurnSubtitles(v, false)}
           label={<span className="text-sm font-medium">{t('cap.burn', 'Burn captions into the video')}</span>}
         />
         <Select

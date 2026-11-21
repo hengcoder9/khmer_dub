@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AudioLines, Captions, Columns2, Film, Maximize, Minimize, Pause, Play, Scissors, Square, Volume2, VolumeX } from 'lucide-react'
+import { AudioLines, Captions, Columns2, Film, Flame, Maximize, Minimize, Pause, Play, Scissors, Square, Volume2, VolumeX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useActiveEpisode, useProject } from '@/store/project'
 import { useSettings } from '@/store/settings'
@@ -9,6 +9,7 @@ import { mediaUrl } from '@/lib/api'
 import { cn, formatTime, isTyping } from '@/lib/utils'
 import { clipSpeed, dubOnAt, dubSpans, effectiveClips, outputDuration, outputToSource, sourceToOutput, transitionDur } from '@shared/ranges'
 import { CaptionPreview } from './CaptionPreview'
+import { setBurnSubtitles } from './burn'
 
 const ASPECT: Record<string, number> = { '16:9': 16 / 9, '9:16': 9 / 16, '1:1': 1, '4:5': 4 / 5 }
 
@@ -18,6 +19,7 @@ export function VideoPlayer() {
   const captions = useProject((s) => s.project?.settings.captions)
   const targetLang = useProject((s) => s.project?.settings.targetLang ?? 'km')
   const muteOrig = useProject((s) => s.project?.settings.muteOriginal ?? false)
+  const burn = useProject((s) => s.project?.settings.burnSubtitles ?? false)
   const wm = useProject((s) => s.project?.settings.watermark)
   const [wmUrl, setWmUrl] = useState<string | null>(null)
   useEffect(() => {
@@ -416,6 +418,17 @@ export function VideoPlayer() {
             {cue && captions && (
               <CaptionPreview style={captions} text={cue.text} start={cue.start} end={cue.end} time={time} height={boxH} lang={captions.source === 'target' ? targetLang : 'en'} />
             )}
+            {cue && captions && (
+              <div
+                className={cn(
+                  'pointer-events-none absolute right-2 top-2 flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-white',
+                  burn ? 'bg-primary/90' : 'bg-black/60'
+                )}
+              >
+                {burn ? <Flame className="size-3" /> : <Captions className="size-3" />}
+                {burn ? t('player.burnBadge', 'Burned in') : t('player.previewBadge', 'Preview only')}
+              </div>
+            )}
             {cutHere && (
               <div className="pointer-events-none absolute left-2 top-2 flex items-center gap-1 rounded bg-destructive/90 px-1.5 py-0.5 text-[11px] text-white">
                 <Scissors className="size-3" /> {t('player.cut', 'Cut')}
@@ -495,7 +508,22 @@ export function VideoPlayer() {
               <AudioLines className="size-3.5" /> {t('player.dub', 'Dub')}
             </Button>
           )}
-          <Button variant={showSubtitles ? 'secondary' : 'ghost'} size="icon" onClick={() => setSettings({ showSubtitles: !showSubtitles })} title={t('player.subtitles', 'Subtitles')}>
+          <Button
+            variant={burn ? 'secondary' : 'ghost'}
+            size="sm"
+            className={cn('h-7 px-2 text-[11px]', burn && 'text-primary')}
+            onClick={() => setBurnSubtitles(!burn)}
+            disabled={!ep}
+            title={t('player.burnHint', 'Burn captions into the exported video (ON = shown on the video, OFF = hidden)')}
+          >
+            <Flame className="size-3.5" /> {burn ? t('player.burnOn', 'Burn ON') : t('player.burnOff', 'Burn OFF')}
+          </Button>
+          <Button
+            variant={showSubtitles ? 'secondary' : 'ghost'}
+            size="icon"
+            onClick={() => setSettings({ showSubtitles: !showSubtitles })}
+            title={t('player.subtitlesHint', 'Show / hide captions in the preview only (does not change the export)')}
+          >
             <Captions />
           </Button>
           <Button variant="ghost" size="icon" onClick={() => setMuted((m) => !m)} title={t('player.mute', 'Mute')}>

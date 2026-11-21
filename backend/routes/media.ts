@@ -2,7 +2,8 @@ import type { FastifyInstance } from 'fastify'
 import { createReadStream } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
 import { extname, join, resolve } from 'node:path'
-import { isVideoName } from '../pipeline/download'
+import { isVideoName, resolveLink } from '../pipeline/download'
+import { explainError, infoArgs, runYtdlp, summarizeInfo } from '../pipeline/ytdlp'
 import { probeMedia } from '../lib/ffmpeg'
 import { allowFile, isAllowed } from '../lib/allow'
 import { getPeaks, getThumb } from '../lib/peaks'
@@ -38,6 +39,30 @@ async function checkFile(p: string | undefined): Promise<{ abs: string; size: nu
 }
 
 export async function mediaRoutes(app: FastifyInstance) {
+  /**
+   * Import Link preview: direct / Drive / Dropbox links are plain files; anything else is asked of yt-dlp
+   * (title, thumbnail, duration, qualities — or the videos of a playlist).
+   */
+  app.post<{ Body: { url?: string; playlist?: boolean } }>('/link/info', async (req, reply) => {
+    let link
+    try {
+      link = resolveLink(req.body?.url ?? '')
+    } catch (e) {
+      return reply.code(400).send({ error: (e as Error).message })
+    }
+    if (link.kind === 'gdrive' || link.kind === 'dropbox') return { type: 'file', kind: link.kind }
+    try {
+      const r = await runYtdlp(infoArgs(link.url, !!req.body?.playlist), { keepStdout: true, timeoutMs: 90_000 })
+      if (link.kind === 'direct' && (r.code !== 0 || !r.stdout.trim())) return { type: 'file', kind: 'direct' }
+      if (r.code !== 0 || !r.stdout.trim()) {
+        return reply.code(422).send({ error: explainError(r.errors[r.errors.length - 1] ?? `yt-dlp exited with code ${r.code}`) })
+      }
+      return summarizeInfo(JSON.parse(r.stdout))
+    } catch (e) {
+      return reply.code(500).send({ error: (e as Error).message })
+    }
+  })
+
   /** Video files in a folder the user picked, in natural order (EP2 before EP10). */
   app.post<{ Body: { dir?: string } }>('/media/scan-dir', async (req, reply) => {
     const dir = req.body?.dir

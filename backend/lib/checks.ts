@@ -97,6 +97,19 @@ async function apiKeysCheck(): Promise<Outcome> {
   return { status: ok ? 'warn' : 'fail', detail: `${ok}/${all.length} keys valid — ${res.find((r) => !r.ok)?.detail ?? ''}` }
 }
 
+/** yt-dlp powers Import Link for video pages; optional (direct / Drive / Dropbox links work without it). */
+async function ytdlpCheck(): Promise<Outcome> {
+  const bin = binPath('yt-dlp')
+  try {
+    const r = await run(bin.path, ['--version'], { timeoutMs: 15_000 })
+    if (r.code !== 0) return { status: 'warn', detail: `yt-dlp exited with code ${r.code}` }
+    const v = r.stdout.trim().split(/\r?\n/)[0]
+    return { status: 'ok', detail: `${v}${bin.bundled ? ' (bundled)' : ' (from PATH)'}` }
+  } catch {
+    return { status: 'warn', detail: 'yt-dlp not found: Import Link works only for direct / Google Drive / Dropbox links. Run "npm run fetch:ytdlp".' }
+  }
+}
+
 async function diskCheck(): Promise<Outcome> {
   let s
   try {
@@ -137,6 +150,7 @@ const CHECKS: Check[] = [
   { id: 'backend', label: 'Backend server', run: async () => ({ status: 'ok', detail: `Running (pid ${process.pid}, Node ${process.versions.node})` }) },
   { id: 'ffmpeg', label: 'ffmpeg', run: () => versionOf('ffmpeg') },
   { id: 'ffprobe', label: 'ffprobe', run: () => versionOf('ffprobe') },
+  { id: 'ytdlp', label: 'yt-dlp (Import Link)', run: ytdlpCheck },
   {
     id: 'gpuEncoder',
     label: 'GPU video encoder',

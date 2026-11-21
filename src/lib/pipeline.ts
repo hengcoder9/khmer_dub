@@ -108,13 +108,38 @@ export async function importFolder() {
   autoLines(ids)
 }
 
-/** Import Link: download a video you own / are licensed to dub into the project, as a new episode. */
-export async function importLink(url: string) {
-  const r = await runJob<{ path: string }>('download', { url, outDir: `${P().dir}\\downloads` })
-  const ids = await addEpisodeVideos([r.path])
-  toast.success(`Downloaded and added as ${P().project!.episodes.find((e) => e.id === ids[0])?.label}`)
-  autoLines(ids)
-  return r.path
+export type LinkQuality = 'best' | '1080' | '720' | '480'
+
+/**
+ * Import Link: download videos you own / are licensed to dub (one link, or the picked videos of a playlist).
+ * Downloads run in the background (jobs panel); each finished video becomes the next episode, in link order,
+ * then lines are made automatically.
+ */
+export async function importLink(urls: string | string[], quality: LinkQuality = '1080') {
+  const list = Array.isArray(urls) ? urls : [urls]
+  const outDir = `${P().dir}\\downloads`
+  const jobs = list.map((url) => runJob<{ path: string; title?: string }>('download', { url, outDir, quality }))
+  const added: string[] = []
+  let failed = 0
+  // add in link order: wait for each in turn (they still download in parallel)
+  for (const job of jobs) {
+    try {
+      const r = await job
+      const ids = await addEpisodeVideos([r.path])
+      added.push(...ids)
+      if (list.length === 1) toast.success(`Downloaded${r.title ? ` “${r.title}”` : ''} → ${P().project!.episodes.find((e) => e.id === ids[0])?.label}`)
+      autoLines(ids)
+    } catch (e) {
+      failed++
+      notify(e)
+    }
+  }
+  if (list.length > 1) {
+    const labels = added.map((id) => P().project!.episodes.find((e) => e.id === id)?.label).join(', ')
+    if (added.length) toast.success(`Downloaded ${added.length} of ${list.length} videos${labels ? `: ${labels}` : ''}`)
+    else if (failed) toast.error(`None of the ${list.length} videos could be downloaded`)
+  }
+  return added
 }
 
 /** The project's Source & licence note as plain text (SOURCE.txt). */

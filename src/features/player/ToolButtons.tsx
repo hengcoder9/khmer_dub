@@ -7,7 +7,7 @@ import { mutate, useActiveEpisode, useProject } from '@/store/project'
 import { useUi } from '@/store/ui'
 import { importBgm, importFolder, saveSrtFiles, importSubtitles, importVideo, importVoiceTrack, notify, separateVocals } from '@/lib/pipeline'
 import { DropdownContent, DropdownMenu, DropdownTrigger } from '@/components/ui/controls'
-import { useSettings } from '@/store/settings'
+import { setBurnSubtitles } from './burn'
 
 interface Tool {
   key: string
@@ -71,16 +71,7 @@ export function ToolButtons() {
       icon: Captions,
       label: t('tools.burnSubtitles', 'Burn Subtitles'),
       active: burn,
-      run: () => {
-        mutate((p) => ({ ...p, settings: { ...p.settings, burnSubtitles: !p.settings.burnSubtitles } }), { undo: false })
-        // show them in the preview, the way they will look burned in
-        if (!burn) useSettings.getState().set({ showSubtitles: true })
-        toast.info(
-          !burn
-            ? t('tools.burnOn2', 'Burn ON — the subtitles you see in the preview will be burned into the video when you Export (style: AI Video Editor → Captions)')
-            : t('tools.burnOff', 'Subtitles will not be burned in')
-        )
-      }
+      run: () => setBurnSubtitles(!burn)
     },
     { key: 'automate', icon: Bot, label: t('tools.automate', 'Automate'), run: () => setUi({ dialog: 'automate' }) },
     { key: 'importFolder', icon: FolderInput, label: t('tools.importFolder', 'Import Folder'), run: () => importFolder() },

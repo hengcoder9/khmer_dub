@@ -25,7 +25,7 @@ for (const d of [modelsDir, cacheDir, voicesDir, logsDir]) mkdirSync(d, { recurs
 const bundled = (name: string) => join(binDir, `${name}.exe`)
 
 /** Bundled binary if present, else fall back to whatever is on PATH. */
-export function binPath(name: 'ffmpeg' | 'ffprobe'): { path: string; bundled: boolean } {
+export function binPath(name: 'ffmpeg' | 'ffprobe' | 'yt-dlp'): { path: string; bundled: boolean } {
   const p = bundled(name)
   return existsSync(p) ? { path: p, bundled: true } : { path: name, bundled: false }
 }
