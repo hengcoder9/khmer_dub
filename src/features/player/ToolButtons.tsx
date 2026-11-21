@@ -78,7 +78,7 @@ export function ToolButtons() {
       key: 'aiVideo',
       icon: Film,
       label: t('tools.aiVideo', 'AI Video'),
-      needsVideo: true,
+      // always clickable: without a video the editor explains what AI Video needs and offers the imports
       run: () => {
         // open the AI Video Editor tab at the AI Creator (shorts / trailer / recap)
         setUi({ centerTab: 'editor' })

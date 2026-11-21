@@ -9,14 +9,17 @@ import {
   Check,
   Clapperboard,
   Eraser,
+  FolderInput,
   GripVertical,
   Layers,
+  Link,
   Loader2,
   Music,
   RotateCcw,
   Scissors,
   Sparkles,
   Trash2,
+  Video,
   Wand2,
   X
 } from 'lucide-react'
@@ -28,7 +31,7 @@ import { Slider, Switch, Toggle } from '@/components/ui/controls'
 import { sortSegments, updateEpisode, useActiveEpisode, useProject } from '@/store/project'
 import { useSettings } from '@/store/settings'
 import { playerApi, useUi } from '@/store/ui'
-import { applyEditPlan, detectSilences, editAllEpisodes, importBgm, newClipId, notify, planEpisodeEdit, type EditPlan } from '@/lib/pipeline'
+import { applyEditPlan, detectSilences, editAllEpisodes, importBgm, importFolder, importVideo, newClipId, notify, planEpisodeEdit, type EditPlan } from '@/lib/pipeline'
 import { cn, formatTime } from '@/lib/utils'
 import { CaptionStyleEditor } from './CaptionStyleEditor'
 import { AiCreator } from './AiCreator'
@@ -57,9 +60,31 @@ export function EditorPanel() {
   if (!ep.videoPath)
     return (
       <div className="grid h-full place-items-center p-6 text-center text-sm text-muted-foreground">
-        <div className="flex max-w-sm flex-col items-center gap-2">
+        <div className="flex max-w-md flex-col items-center gap-3">
           <Clapperboard className="size-8 opacity-50" />
-          {t('editor.noVideo', 'Import a video to use the AI video editor.')}
+          <div className="text-base font-medium text-foreground">{t('editor.noVideoTitle', 'AI Video starts from your episode')}</div>
+          <p>
+            {t(
+              'editor.noVideo2',
+              'The AI cuts new videos (shorts, trailer, recap) out of an episode: it reads the lines, picks the best moments and exports them with your dub. Import the episode video first — the lines are made automatically — then press Generate videos.'
+            )}
+          </p>
+          <ol className="list-decimal space-y-0.5 text-left text-xs">
+            <li>{t('editor.step1', 'Import a video (file, folder or link)')}</li>
+            <li>{t('editor.step2', 'Wait for the lines (Listen + Read runs by itself)')}</li>
+            <li>{t('editor.step3', 'AI Video → Generate videos')}</li>
+          </ol>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button size="sm" onClick={() => importVideo(ep.id).catch(notify)}>
+              <Video /> {t('tools.importVideo', 'Import Video')}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => useUi.getState().set({ dialog: 'link' })}>
+              <Link /> {t('tools.importLink', 'Import Link')}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => importFolder().catch(notify)}>
+              <FolderInput /> {t('tools.importFolder', 'Import Folder')}
+            </Button>
+          </div>
         </div>
       </div>
     )
