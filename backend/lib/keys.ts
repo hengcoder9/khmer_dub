@@ -61,7 +61,10 @@ export class KeyPool {
   }
 }
 
-export const keyPool = new KeyPool(Date.now, () => emit({ type: 'keys', ...keyPool.stats('gemini') }))
+// One pool per process, even if the bundler ends up with two copies of this module (it did: building from "d:\" vs
+// "D:\" made server.ts fill one copy while the AI calls read the other, so every cloud job said "No API key").
+const g = globalThis as unknown as { __kdKeyPool?: KeyPool }
+export const keyPool: KeyPool = (g.__kdKeyPool ??= new KeyPool(Date.now, () => emit({ type: 'keys', ...keyPool.stats('gemini') })))
 
 // re-announce when cooldowns expire so the footer "Keys 7/8" recovers on its own
 setInterval(() => {

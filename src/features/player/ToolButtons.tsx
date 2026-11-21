@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { AudioWaveform, Bot, Captions, FileDown, FileUp, FolderInput, Link, Loader2, Music, ShieldCheck, Stamp, Video, VolumeX, Wand2, type LucideIcon } from 'lucide-react'
+import { AudioWaveform, Bot, Captions, FileDown, FileUp, Film, FolderInput, Link, Loader2, Music, ShieldCheck, Stamp, Video, VolumeX, Wand2, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { mutate, useActiveEpisode, useProject } from '@/store/project'
 import { useUi } from '@/store/ui'
@@ -74,6 +74,17 @@ export function ToolButtons() {
       run: () => setBurnSubtitles(!burn)
     },
     { key: 'automate', icon: Bot, label: t('tools.automate', 'Automate'), run: () => setUi({ dialog: 'automate' }) },
+    {
+      key: 'aiVideo',
+      icon: Film,
+      label: t('tools.aiVideo', 'AI Video'),
+      needsVideo: true,
+      run: () => {
+        // open the AI Video Editor tab at the AI Creator (shorts / trailer / recap)
+        setUi({ centerTab: 'editor' })
+        setTimeout(() => document.getElementById('ai-creator')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
+      }
+    },
     { key: 'importFolder', icon: FolderInput, label: t('tools.importFolder', 'Import Folder'), run: () => importFolder() },
     { key: 'importLink', icon: Link, label: t('tools.importLink', 'Import Link'), run: () => setUi({ dialog: 'link' }) },
     { key: 'watermark', icon: Stamp, label: t('tools.watermark', 'Watermark'), active: hasWm, run: () => setUi({ dialog: 'watermark' }) },

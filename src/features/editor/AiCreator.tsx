@@ -95,7 +95,7 @@ export function AiCreator({ ep }: { ep: Episode }) {
   const chosenCount = rows.filter((r) => r.on).length
 
   return (
-    <section className="rounded-lg border bg-card">
+    <section id="ai-creator" className="scroll-mt-3 rounded-lg border bg-card">
       <div className="flex items-center gap-2 border-b px-3 py-2">
         <Film className="size-4 text-primary" />
         <h3 className="text-sm font-semibold">{t('creator.title', 'AI Creator')}</h3>
