@@ -422,6 +422,7 @@ export async function translate(epId?: string, ids?: string[], provider?: Transl
       context: before.map((s) => ({ id: s.id, khmer: s.textTarget })),
       geminiModel: S().geminiModel,
       openrouterModel: S().openrouterModel,
+      codecraftModel: S().codecraftModel,
       claudeModel: S().claudeModel
     },
     e.id
@@ -833,7 +834,16 @@ export const editedDuration = (e: Episode) => (e.edit.enabled ? outputDuration(e
 const ocrJob = (e: Episode) =>
   runJob<{ segments: RawSeg[] }>(
     'ocr',
-    { videoPath: e.videoPath, epDir: epDir(e), durationSec: e.durationSec, interval: S().ocrInterval, cropTop: S().ocrCropTop, geminiModel: S().geminiModel },
+    {
+      videoPath: e.videoPath,
+      epDir: epDir(e),
+      durationSec: e.durationSec,
+      interval: S().ocrInterval,
+      cropTop: S().ocrCropTop,
+      geminiModel: S().geminiModel,
+      provider: S().screenReader,
+      model: S().screenReader === 'codecraft' ? S().codecraftModel : S().geminiModel
+    },
     e.id
   )
 

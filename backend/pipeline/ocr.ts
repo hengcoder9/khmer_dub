@@ -16,6 +16,9 @@ export interface OcrPayload {
   interval: number // seconds between sampled frames
   cropTop: number // 0..1, keep the bottom part from this fraction (subtitles area)
   geminiModel: string
+  /** which AI reads the frames (default Gemini) */
+  provider?: 'gemini' | 'codecraft'
+  model?: string
 }
 
 /** "Read Screen": sample frames, read hard-coded subtitles with Gemini vision, merge into timed lines. */
@@ -39,7 +42,9 @@ export async function readScreen(p: OcrPayload, ctx: JobCtx): Promise<{ segments
 
     let doneFrames = 0
     ctx.progress(15, `Reading ${frames.length} frames`)
-    await mapLimit(batches, llmParallelism(keyPool.all('gemini').length), async (batch) => {
+    const provider = p.provider ?? 'gemini'
+    const model = (provider === 'gemini' ? p.geminiModel : p.model) || p.geminiModel
+    await mapLimit(batches, llmParallelism(keyPool.all(provider).length), async (batch) => {
       ctx.throwIfCanceled()
       const parts = batch.flatMap(({ f, t }) => [
         { text: `Frame t=${t}` },
@@ -51,8 +56,8 @@ export async function readScreen(p: OcrPayload, ctx: JobCtx): Promise<{ segments
           'Ignore logos, watermarks, channel names and UI. If a frame has no subtitle, use "". Return ONLY JSON: [{"t": number, "text": string}] for every frame.'
       })
       const rows = await llmJson<Array<{ t: number; text: string }>>({
-        provider: 'gemini',
-        model: p.geminiModel,
+        provider,
+        model,
         parts,
         schema: {
           type: 'ARRAY',

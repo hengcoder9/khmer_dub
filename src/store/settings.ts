@@ -18,6 +18,11 @@ interface SettingsState {
   volume: number
   geminiModel: string
   openrouterModel: string
+  /** CodeCraft (OpenAI-compatible gateway): base URL from its dashboard, e.g. https://…/v1 */
+  codecraftBaseUrl: string
+  codecraftModel: string
+  /** which AI reads on-screen subtitles */
+  screenReader: 'gemini' | 'codecraft'
   claudeModel: string
   defaultMale: string
   defaultFemale: string
@@ -63,6 +68,9 @@ export const useSettings = create<SettingsState>()(
       volume: 1,
       geminiModel: 'gemini-3.8-flash',
       openrouterModel: 'google/gemini-2.5-flash',
+      codecraftBaseUrl: '',
+      codecraftModel: 'gemini-3.1-pro',
+      screenReader: 'gemini',
       claudeModel: DEFAULT_CLAUDE_MODEL,
       defaultMale: DEFAULT_VOICES.male,
       defaultFemale: DEFAULT_VOICES.female,
@@ -107,9 +115,10 @@ export const useSettings = create<SettingsState>()(
 )
 
 /** Cloud LLM + model for the project's translator choice (offline falls back to Gemini for text tasks). */
-export function llmChoice(translator: Translator): { provider: 'gemini' | 'openrouter' | 'claude'; model: string } {
+export function llmChoice(translator: Translator): { provider: 'gemini' | 'openrouter' | 'claude' | 'codecraft'; model: string } {
   const s = useSettings.getState()
   if (translator === 'openrouter') return { provider: 'openrouter', model: s.openrouterModel }
+  if (translator === 'codecraft') return { provider: 'codecraft', model: s.codecraftModel || 'gemini-3.1-pro' }
   if (translator === 'claude') return { provider: 'claude', model: s.claudeModel || DEFAULT_CLAUDE_MODEL }
   return { provider: 'gemini', model: s.geminiModel }
 }

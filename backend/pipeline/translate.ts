@@ -27,6 +27,7 @@ export interface TranslatePayload {
   context?: TResult[]
   geminiModel: string
   openrouterModel: string
+  codecraftModel?: string
   claudeModel?: string
 }
 
@@ -52,7 +53,8 @@ export async function translate(p: TranslatePayload, ctx: JobCtx): Promise<{ res
 
   const sys = systemPrompt(p.targetLang, p.glossary)
   const provider = p.provider as Provider
-  const model = provider === 'gemini' ? p.geminiModel : provider === 'claude' ? p.claudeModel || DEFAULT_CLAUDE_MODEL : p.openrouterModel
+  const model =
+    provider === 'gemini' ? p.geminiModel : provider === 'claude' ? p.claudeModel || DEFAULT_CLAUDE_MODEL : provider === 'codecraft' ? p.codecraftModel || 'gemini-3.1-pro' : p.openrouterModel
   const context = [...(p.context ?? [])].slice(-10)
   const chunks = chunk(items, 60)
 

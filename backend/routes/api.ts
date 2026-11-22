@@ -5,7 +5,7 @@ import type { Gender } from '../../shared/types'
 import { cancelJob, createJob, listJobs, setGpuLanes } from '../queue'
 import { subscribe } from '../lib/events'
 import { keyPool, type Provider } from '../lib/keys'
-import { testKey } from '../lib/llm'
+import { setLlmConfig, testKey } from '../lib/llm'
 import { setCloneLanes, nextCloneLane } from '../lib/python'
 import { cacheDir } from '../lib/paths'
 import { allowFile } from '../lib/allow'
@@ -36,13 +36,18 @@ export async function apiRoutes(app: FastifyInstance) {
   app.post<{ Params: { id: string } }>('/jobs/:id/cancel', async (req) => ({ ok: cancelJob(req.params.id) }))
 
   // keys (values come from electron main; renderer only sees ids/stats)
-  app.get('/keys/stats', async () => ({ gemini: keyPool.stats('gemini'), openrouter: keyPool.stats('openrouter'), claude: keyPool.stats('claude') }))
+  app.get('/keys/stats', async () => ({ gemini: keyPool.stats('gemini'), openrouter: keyPool.stats('openrouter'), claude: keyPool.stats('claude'), codecraft: keyPool.stats('codecraft') }))
   app.post<{ Body: { provider: Provider } }>('/keys/test', async (req) => {
     const results = await Promise.all(keyPool.all(req.body.provider).map(async (k) => ({ id: k.id, ...(await testKey(k.provider, k.key)) })))
     return { results }
   })
 
   // AI helpers
+  // OpenAI-compatible gateways (CodeCraft): base URL from Settings → API Keys
+  app.post<{ Body: { codecraftBaseUrl?: string } }>('/llm/config', async (req) => {
+    setLlmConfig(req.body ?? {})
+    return { ok: true }
+  })
   app.post<{ Body: Parameters<typeof shortenLine>[0] }>('/ai/shorten', async (req) => ({ text: await shortenLine(req.body) }))
   app.post<{ Body: AiEditRequest }>('/ai/edit', async (req) => planEdit(req.body))
   app.post<{ Body: CreatorRequest }>('/ai/create', async (req) => planCreate(req.body))

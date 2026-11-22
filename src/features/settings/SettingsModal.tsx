@@ -45,7 +45,7 @@ const SECTIONS: Array<{ id: SectionId; icon: LucideIcon; en: string; keywords: s
   { id: 'general', icon: Settings2, en: 'General', keywords: 'language default voice folder' },
   { id: 'account', icon: User, en: 'Account', keywords: 'profile local' },
   { id: 'theme', icon: Palette, en: 'Theme', keywords: 'dark light color' },
-  { id: 'apiKeys', icon: KeyRound, en: 'API Keys', keywords: 'gemini openrouter model key pool' },
+  { id: 'apiKeys', icon: KeyRound, en: 'API Keys', keywords: 'gemini openrouter claude codecraft model key pool base url' },
   { id: 'engines', icon: Cpu, en: 'Engines', keywords: 'python install whisper demucs torch gpu cuda lanes' },
   { id: 'shortcuts', icon: Keyboard, en: 'Shortcuts', keywords: 'keyboard hotkey' },
   { id: 'voiceClone', icon: Mic, en: 'Voice Clone Engine', keywords: 'f5 clone reference gpu lanes' },

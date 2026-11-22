@@ -633,3 +633,12 @@ sv.removeScene	លុបឈុត
 sv.render	បង្កើតវីដេអូ
 sv.done	វីដេអូ Claude រួចរាល់
 sv.needMedia	បន្ថែមរូបភាព ឬឃ្លីបជាមុនសិន (ឬជ្រើស ពណ៌)
+cc.kind	ច្រកចេញចូល AI ដែលត្រូវគ្នានឹង OpenAI
+cc.desc	បិទភ្ជាប់ Base URL និង API key ពីផ្ទាំងគ្រប់គ្រង CodeCraft របស់អ្នក។ បន្ទាប់មកជ្រើស CodeCraft ជាអ្នកបកប្រែ (ក៏ប្រើដោយ អ្នកបង្កើត AI ចំណងជើង AI និងការកែសំឡេងផងដែរ) និង/ឬ សម្រាប់ អានអេក្រង់ ខាងក្រោម។
+cc.baseUrl	Base URL
+cc.baseUrlHint	ពីផ្ទាំងគ្រប់គ្រង CodeCraft ជាធម្មតាបញ្ចប់ដោយ /v1 (…/chat/completions បន្ថែមដោយស្វ័យប្រវត្តិ)
+cc.model	ម៉ូដែល
+cc.modelHint	ឧ. gemini-3.1-pro — «ពិនិត្យ» ផ្ទុកបញ្ជី
+cc.screen	អានអេក្រង់ ប្រើ
+cc.check	ពិនិត្យការតភ្ជាប់
+cc.noKey	បន្ថែម key ជាមុនសិន

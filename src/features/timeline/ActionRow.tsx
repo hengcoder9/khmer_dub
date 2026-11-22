@@ -48,6 +48,7 @@ export function ActionRow() {
     ['gemini', 'Gemini'],
     ['openrouter', 'OpenRouter'],
     ['claude', 'Claude'],
+    ['codecraft', 'CodeCraft'],
     ['offline', t('tr.offline', 'Offline (NLLB)')]
   ]
   const sel = [...selected]

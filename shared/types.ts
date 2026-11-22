@@ -16,7 +16,7 @@ export interface FileFilter {
 
 export interface KeyEntry {
   id: string
-  provider: 'gemini' | 'openrouter' | 'claude'
+  provider: 'gemini' | 'openrouter' | 'claude' | 'codecraft'
   /** masked, e.g. "AIza…x9Q2" — real key never leaves the main/backend processes */
   masked: string
   label?: string
@@ -216,7 +216,7 @@ export interface Episode {
   edit: EditState
 }
 
-export type Translator = 'gemini' | 'openrouter' | 'claude' | 'offline'
+export type Translator = 'gemini' | 'openrouter' | 'claude' | 'codecraft' | 'offline'
 
 /** Default Claude model for translation / AI edit (the user can change it in Settings → API Keys). */
 export const DEFAULT_CLAUDE_MODEL = 'claude-opus-5-5'

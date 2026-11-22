@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { CheckCircle2, Loader2, Plus, Trash2, XCircle, FlaskConical } from 'lucide-react'
 import type { KeyEntry } from '@shared/types'
 import { Button } from '@/components/ui/button'
-import { Field, Input } from '@/components/ui/controls'
+import { Field, Input, Select } from '@/components/ui/controls'
 import { useSettings } from '@/store/settings'
 import { useJobs } from '@/store/jobs'
 import { post } from '@/lib/api'
@@ -79,7 +79,7 @@ function KeyList({ provider, keys, setKeys }: { provider: KeyEntry['provider']; 
         )
       })}
       <div className="flex gap-2">
-        <Input className="flex-1 font-mono" type="password" placeholder={{ gemini: 'AIza…', openrouter: 'sk-or-…', claude: 'sk-ant-…' }[provider]} value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
+        <Input className="flex-1 font-mono" type="password" placeholder={{ gemini: 'AIza…', openrouter: 'sk-or-…', claude: 'sk-ant-…', codecraft: 'sk-…' }[provider]} value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
         <Input className="w-32" placeholder={t('keys.label', 'Label')} value={label} onChange={(e) => setLabel(e.target.value)} />
         <Button variant="outline" onClick={add} disabled={!value.trim()}>
           <Plus /> {t('keys.add', 'Add')}
@@ -164,6 +164,75 @@ export function ApiKeysPage() {
           </datalist>
         </Field>
       </section>
+      <CodeCraftSection keys={keys} setKeys={setKeys} />
     </div>
+  )
+}
+
+/** CodeCraft: an OpenAI-compatible AI gateway (base URL + key from its dashboard). */
+function CodeCraftSection({ keys, setKeys }: { keys: KeyEntry[]; setKeys: (k: KeyEntry[]) => void }) {
+  const { t } = useTranslation()
+  const s = useSettings()
+  const [models, setModels] = useState<string[]>([])
+  const [checking, setChecking] = useState(false)
+  const [status, setStatus] = useState<string | null>(null)
+  const saveUrl = (url: string) => {
+    s.set({ codecraftBaseUrl: url.trim() })
+    post('/llm/config', { codecraftBaseUrl: url.trim() }).catch(() => {})
+  }
+  const check = async () => {
+    setChecking(true)
+    setStatus(null)
+    try {
+      const r = await post<{ results: Array<{ ok: boolean; detail: string; models?: string[] }> }>('/keys/test', { provider: 'codecraft' })
+      const ok = r.results.find((x) => x.ok)
+      if (ok?.models?.length) setModels(ok.models)
+      setStatus(ok ? `✓ ${ok.detail}` : `✗ ${r.results[0]?.detail ?? t('cc.noKey', 'Add a key first')}`)
+    } catch (e) {
+      setStatus(`✗ ${(e as Error).message}`)
+    } finally {
+      setChecking(false)
+    }
+  }
+  return (
+    <section className="flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <h3 className="font-medium">CodeCraft</h3>
+        <span className="text-xs text-muted-foreground">{t('cc.kind', 'OpenAI-compatible AI gateway')}</span>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {t('cc.desc', 'Paste the base URL and an API key from your CodeCraft dashboard. Then choose CodeCraft as the translator (it is also used by the AI Creator, AI titles and polish), and/or for Read Screen below.')}
+      </p>
+      <Field label={t('cc.baseUrl', 'Base URL')} hint={t('cc.baseUrlHint', 'From your CodeCraft dashboard, usually ending in /v1 (…/chat/completions is added automatically)')}>
+        <Input className="font-mono" placeholder="https://…/v1" defaultValue={s.codecraftBaseUrl} onBlur={(e) => saveUrl(e.target.value)} />
+      </Field>
+      <KeyList provider="codecraft" keys={keys} setKeys={setKeys} />
+      <div className="grid grid-cols-2 gap-3">
+        <Field label={t('cc.model', 'Model')} hint={t('cc.modelHint', 'e.g. gemini-3.1-pro — “Check” loads the list')}>
+          <Input list="codecraft-models" value={s.codecraftModel} onChange={(e) => s.set({ codecraftModel: e.target.value.trim() })} />
+          <datalist id="codecraft-models">
+            {models.map((m) => (
+              <option key={m} value={m} />
+            ))}
+          </datalist>
+        </Field>
+        <Field label={t('cc.screen', 'Read Screen uses')}>
+          <Select
+            value={s.screenReader}
+            onChange={(v) => s.set({ screenReader: v as 'gemini' | 'codecraft' })}
+            options={[
+              { value: 'gemini', label: 'Google Gemini' },
+              { value: 'codecraft', label: 'CodeCraft' }
+            ]}
+          />
+        </Field>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button variant="outline" size="sm" onClick={check} disabled={checking}>
+          {checking ? <Loader2 className="animate-spin" /> : <FlaskConical />} {t('cc.check', 'Check connection')}
+        </Button>
+        {status && <span className="text-xs text-muted-foreground">{status}</span>}
+      </div>
+    </section>
   )
 }

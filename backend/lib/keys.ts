@@ -2,7 +2,7 @@
 
 import { emit } from './events'
 
-export type Provider = 'gemini' | 'openrouter' | 'claude'
+export type Provider = 'gemini' | 'openrouter' | 'claude' | 'codecraft'
 
 export interface PoolKey {
   id: string
@@ -13,7 +13,7 @@ export interface PoolKey {
 
 export class KeyPool {
   private keys: PoolKey[] = []
-  private cursor: Record<Provider, number> = { gemini: 0, openrouter: 0, claude: 0 }
+  private cursor: Record<Provider, number> = { gemini: 0, openrouter: 0, claude: 0, codecraft: 0 }
   constructor(private now: () => number = Date.now, private onChange: () => void = () => {}) {}
 
   set(keys: Array<{ id: string; provider: Provider; key: string }>): void {
@@ -33,7 +33,7 @@ export class KeyPool {
   /** Next ready key (round-robin), or the one that recovers soonest plus how long to wait. */
   next(provider: Provider): { key: PoolKey; waitMs: number } {
     const list = this.all(provider)
-    if (!list.length) throw new Error(`No ${{ gemini: 'Gemini', openrouter: 'OpenRouter', claude: 'Claude' }[provider]} API key. Add one in Settings → API Keys.`)
+    if (!list.length) throw new Error(`No ${{ gemini: 'Gemini', openrouter: 'OpenRouter', claude: 'Claude', codecraft: 'CodeCraft' }[provider]} API key. Add one in Settings → API Keys.`)
     const t = this.now()
     for (let i = 0; i < list.length; i++) {
       const idx = (this.cursor[provider] + i) % list.length

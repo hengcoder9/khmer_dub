@@ -21,6 +21,21 @@ export interface LlmOptions {
 const GEMINI = 'https://generativelanguage.googleapis.com/v1beta'
 const OPENROUTER = 'https://openrouter.ai/api/v1'
 
+/** OpenAI-compatible gateway "CodeCraft": the user pastes its base URL (…/v1) in Settings → API Keys. */
+let codecraftBase = ''
+export function setLlmConfig(c: { codecraftBaseUrl?: string }) {
+  if (c.codecraftBaseUrl !== undefined) codecraftBase = normalizeBaseUrl(c.codecraftBaseUrl)
+}
+/** "https://x.com/v1/" or ".../v1/chat/completions" → "https://x.com/v1" (we append /chat/completions ourselves). */
+export function normalizeBaseUrl(u: string): string {
+  return u.trim().replace(/\/+$/, '').replace(/\/chat\/completions$/i, '').replace(/\/+$/, '')
+}
+function codecraftUrl(): string {
+  // a setup problem, not a network hiccup: fail at once instead of retrying
+  if (!codecraftBase) throw new FatalLlmError('Set the CodeCraft base URL in Settings → API Keys (it is shown in your CodeCraft dashboard, e.g. https://…/v1).')
+  return codecraftBase
+}
+
 const sleep = (ms: number, signal?: AbortSignal) =>
   new Promise<void>((resolve, reject) => {
     const t = setTimeout(resolve, ms)
@@ -92,7 +107,7 @@ async function callGeminiOnce(key: string, o: LlmOptions): Promise<string> {
   return text
 }
 
-async function callOpenRouter(key: string, o: LlmOptions): Promise<string> {
+async function callOpenAICompat(base: string, label: string, key: string, o: LlmOptions, jsonMode = true): Promise<string> {
   const content = o.parts.map((p) =>
     'text' in p ? { type: 'text', text: p.text } : { type: 'image_url', image_url: { url: `data:${p.inlineData.mimeType};base64,${p.inlineData.data}` } }
   )
@@ -100,7 +115,7 @@ async function callOpenRouter(key: string, o: LlmOptions): Promise<string> {
     ...(o.system ? [{ role: 'system', content: o.system }] : []),
     { role: 'user', content: content.length === 1 && 'text' in o.parts[0] ? (o.parts[0] as { text: string }).text : content }
   ]
-  const res = await fetch(`${OPENROUTER}/chat/completions`, {
+  const res = await fetch(`${base}/chat/completions`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -111,15 +126,20 @@ async function callOpenRouter(key: string, o: LlmOptions): Promise<string> {
       model: o.model,
       messages,
       temperature: o.temperature ?? 0.3,
-      ...(o.schema || o.json ? { response_format: { type: 'json_object' } } : {})
+      ...((o.schema || o.json) && jsonMode ? { response_format: { type: 'json_object' } } : {})
     }),
     signal: o.signal ? AbortSignal.any([o.signal, AbortSignal.timeout(300_000)]) : AbortSignal.timeout(300_000)
   })
-  if (!res.ok) throw new HttpError(res.status, `OpenRouter ${res.status}: ${await readError(res)}`)
+  if (!res.ok) {
+    const msg = await readError(res)
+    // some gateways don't support JSON mode: ask again without it (the prompt already asks for JSON)
+    if (res.status === 400 && jsonMode && (o.schema || o.json) && /response_format|json_object|json mode/i.test(msg)) return callOpenAICompat(base, label, key, o, false)
+    throw new HttpError(res.status, `${label} ${res.status}: ${msg}`)
+  }
   const j = (await res.json()) as { choices?: Array<{ message?: { content?: string } }>; error?: { message?: string } }
-  if (j.error) throw new Error(`OpenRouter: ${j.error.message}`)
+  if (j.error) throw new Error(`${label}: ${j.error.message}`)
   const text = j.choices?.[0]?.message?.content ?? ''
-  if (!text) throw new Error('OpenRouter returned no text')
+  if (!text) throw new Error(`${label} returned no text`)
   return text
 }
 
@@ -196,10 +216,13 @@ export async function llmText(o: LlmOptions): Promise<string> {
         ? await callGemini(key.key, o)
         : o.provider === 'claude'
           ? await callClaude(key.key, o)
-          : await callOpenRouter(key.key, o)
+          : o.provider === 'codecraft'
+            ? await callOpenAICompat(codecraftUrl(), 'CodeCraft', key.key, o)
+            : await callOpenAICompat(OPENROUTER, 'OpenRouter', key.key, o)
     } catch (e) {
       const err = e as Error
       if (err.name === 'AbortError' && o.signal?.aborted) throw err
+      if (err instanceof FatalLlmError) throw err
       lastErr = err
       if (err instanceof HttpError) {
         const badKey = err.status === 401 || err.status === 403 || (err.status === 400 && /api key/i.test(err.message))
@@ -246,6 +269,13 @@ export async function testKey(provider: Provider, key: string): Promise<{ ok: bo
       const models: string[] = []
       for await (const m of client.models.list()) models.push(m.id)
       return { ok: true, detail: `${models.length} models`, models }
+    }
+    if (provider === 'codecraft') {
+      const res = await fetch(`${codecraftUrl()}/models`, { headers: { authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(15_000) })
+      if (!res.ok) return { ok: false, detail: await readError(res) }
+      const j = (await res.json().catch(() => ({}))) as { data?: Array<{ id?: string }> }
+      const models = (j.data ?? []).map((m) => m.id).filter((m): m is string => !!m)
+      return { ok: true, detail: models.length ? `${models.length} models` : 'Key valid', models }
     }
     const res = await fetch(`${OPENROUTER}/key`, { headers: { authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(15_000) })
     if (!res.ok) return { ok: false, detail: await readError(res) }

@@ -282,6 +282,7 @@ export function AutomateDialog({ onClose }: { onClose: () => void }) {
                   { value: 'gemini', label: 'Gemini' },
                   { value: 'openrouter', label: 'OpenRouter' },
                   { value: 'claude', label: 'Claude' },
+                  { value: 'codecraft', label: 'CodeCraft' },
                   { value: 'offline', label: 'Offline (NLLB)' }
                 ]}
               />

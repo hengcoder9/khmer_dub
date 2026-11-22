@@ -89,7 +89,7 @@ async function cudaCheck(): Promise<Outcome> {
 }
 
 async function apiKeysCheck(): Promise<Outcome> {
-  const all = [...keyPool.all('gemini'), ...keyPool.all('openrouter'), ...keyPool.all('claude')]
+  const all = [...keyPool.all('gemini'), ...keyPool.all('openrouter'), ...keyPool.all('claude'), ...keyPool.all('codecraft')]
   if (!all.length) return { status: 'warn', detail: 'No API keys — add Gemini/OpenRouter/Claude keys for cloud features' }
   const res = await Promise.all(all.map((k) => testKey(k.provider, k.key)))
   const ok = res.filter((r) => r.ok).length
