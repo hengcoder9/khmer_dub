@@ -8,6 +8,7 @@ import { Field, Input, Select } from '@/components/ui/controls'
 import { useSettings } from '@/store/settings'
 import { useJobs } from '@/store/jobs'
 import { post } from '@/lib/api'
+import { codecraftDashboard } from '@shared/urls'
 
 type TestResult = { id: string; ok: boolean; detail: string; models?: string[] }
 
@@ -176,6 +177,7 @@ function CodeCraftSection({ keys, setKeys }: { keys: KeyEntry[]; setKeys: (k: Ke
   const [models, setModels] = useState<string[]>([])
   const [checking, setChecking] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
+  const dashboard = codecraftDashboard(s.codecraftBaseUrl)
   const saveUrl = (url: string) => {
     s.set({ codecraftBaseUrl: url.trim() })
     post('/llm/config', { codecraftBaseUrl: url.trim() }).catch(() => {})
@@ -199,6 +201,13 @@ function CodeCraftSection({ keys, setKeys }: { keys: KeyEntry[]; setKeys: (k: Ke
       <div className="flex items-center gap-2">
         <h3 className="font-medium">CodeCraft</h3>
         <span className="text-xs text-muted-foreground">{t('cc.kind', 'OpenAI-compatible AI gateway')}</span>
+        {dashboard ? (
+          <a className="ml-auto text-xs text-primary hover:underline" href={dashboard} target="_blank" rel="noreferrer" title={dashboard}>
+            {t('cc.getKey', 'Get API key →')}
+          </a>
+        ) : (
+          <span className="ml-auto text-xs text-muted-foreground">{t('cc.getKeyHint', 'Paste the base URL to get the API key link')}</span>
+        )}
       </div>
       <p className="text-xs text-muted-foreground">
         {t('cc.desc', 'Paste the base URL and an API key from your CodeCraft dashboard. Then choose CodeCraft as the translator (it is also used by the AI Creator, AI titles and polish), and/or for Read Screen below.')}
@@ -236,3 +245,4 @@ function CodeCraftSection({ keys, setKeys }: { keys: KeyEntry[]; setKeys: (k: Ke
     </section>
   )
 }
+

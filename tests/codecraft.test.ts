@@ -66,3 +66,12 @@ describe('CodeCraft (OpenAI-compatible gateway)', () => {
     expect(calls[0]).toMatchObject({ url: 'https://gw.example.com/v1/models', auth: 'Bearer cc-key' })
   })
 })
+
+describe('CodeCraft “Get API key” link', () => {
+  it('points at the site of the pasted base URL', async () => {
+    const { codecraftDashboard } = await import('../shared/urls')
+    expect(codecraftDashboard('https://api.codecraft.example/v1/')).toBe('https://api.codecraft.example')
+    expect(codecraftDashboard('  ')).toBeNull()
+    expect(codecraftDashboard('javascript:alert(1)')).toBeNull()
+  })
+})
