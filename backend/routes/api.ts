@@ -44,7 +44,7 @@ export async function apiRoutes(app: FastifyInstance) {
 
   // AI helpers
   // OpenAI-compatible gateways (CodeCraft): base URL from Settings → API Keys
-  app.post<{ Body: { codecraftBaseUrl?: string } }>('/llm/config', async (req) => {
+  app.post<{ Body: { codecraftBaseUrl?: string; claudeWorkspaceId?: string } }>('/llm/config', async (req) => {
     setLlmConfig(req.body ?? {})
     return { ok: true }
   })

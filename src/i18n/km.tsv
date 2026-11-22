@@ -644,3 +644,5 @@ cc.check	ពិនិត្យការតភ្ជាប់
 cc.noKey	បន្ថែម key ជាមុនសិន
 cc.getKey	យក API key →
 cc.getKeyHint	បិទភ្ជាប់ Base URL ដើម្បីបានតំណយក API key
+keys.claudeWs	Workspace ID (សម្រាប់ key របស់អង្គភាពតែប៉ុណ្ណោះ)
+keys.claudeWsHint	ត្រូវការនៅពេល Claude និយាយថា «This API key is not scoped to a workspace»។ រកវានៅ Claude Console → Workspaces (wrkspc_…)។ ទុកទទេសម្រាប់ key ធម្មតា។

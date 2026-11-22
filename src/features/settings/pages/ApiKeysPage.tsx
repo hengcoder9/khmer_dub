@@ -164,6 +164,20 @@ export function ApiKeysPage() {
             ))}
           </datalist>
         </Field>
+        <Field
+          label={t('keys.claudeWs', 'Workspace ID (only for organisation keys)')}
+          hint={t('keys.claudeWsHint', 'Needed when Claude says “This API key is not scoped to a workspace”. Find it in the Claude Console → Workspaces (wrkspc_…). Leave empty for normal keys.')}
+        >
+          <Input
+            className="font-mono"
+            placeholder="wrkspc_…"
+            defaultValue={s.claudeWorkspaceId}
+            onBlur={(e) => {
+              s.set({ claudeWorkspaceId: e.target.value.trim() })
+              post('/llm/config', { claudeWorkspaceId: e.target.value.trim() }).catch(() => {})
+            }}
+          />
+        </Field>
       </section>
       <CodeCraftSection keys={keys} setKeys={setKeys} />
     </div>

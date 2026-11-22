@@ -53,7 +53,7 @@ export function App() {
       cloneLanes: s.cloneLanes,
       clone: { engine: s.cloneEngine, model: s.cloneModel, ckptFile: s.cloneCkpt || undefined, vocabFile: s.cloneVocab || undefined }
     }).catch(() => {})
-    post('/llm/config', { codecraftBaseUrl: s.codecraftBaseUrl }).catch(() => {})
+    post('/llm/config', { codecraftBaseUrl: s.codecraftBaseUrl, claudeWorkspaceId: s.claudeWorkspaceId }).catch(() => {})
     const flush = () => void saveNow()
     window.addEventListener('beforeunload', flush)
     return () => window.removeEventListener('beforeunload', flush)

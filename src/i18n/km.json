@@ -372,7 +372,9 @@
     "modelSwitched": "បានកំណត់ម៉ូដែលជា {{m}}",
     "orModel": "ម៉ូដែល OpenRouter",
     "pool": "សោសរុប",
-    "test": "សាកល្បង"
+    "test": "សាកល្បង",
+    "claudeWs": "Workspace ID (សម្រាប់ key របស់អង្គភាពតែប៉ុណ្ណោះ)",
+    "claudeWsHint": "ត្រូវការនៅពេល Claude និយាយថា «This API key is not scoped to a workspace»។ រកវានៅ Claude Console → Workspaces (wrkspc_…)។ ទុកទទេសម្រាប់ key ធម្មតា។"
   },
   "newProject": {
     "create": "បង្កើត",

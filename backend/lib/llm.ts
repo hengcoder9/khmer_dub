@@ -23,8 +23,19 @@ const OPENROUTER = 'https://openrouter.ai/api/v1'
 
 /** OpenAI-compatible gateway "CodeCraft": the user pastes its base URL (…/v1) in Settings → API Keys. */
 let codecraftBase = ''
-export function setLlmConfig(c: { codecraftBaseUrl?: string }) {
+/** Claude: an organisation-level key (not scoped to a workspace) must name the workspace in a header. */
+let claudeWorkspace = ''
+export function setLlmConfig(c: { codecraftBaseUrl?: string; claudeWorkspaceId?: string }) {
   if (c.codecraftBaseUrl !== undefined) codecraftBase = normalizeBaseUrl(c.codecraftBaseUrl)
+  if (c.claudeWorkspaceId !== undefined) claudeWorkspace = c.claudeWorkspaceId.trim()
+}
+const claudeClient = (key: string, timeout: number) =>
+  new Anthropic({ apiKey: key, maxRetries: 0, timeout, ...(claudeWorkspace ? { defaultHeaders: { 'anthropic-workspace-id': claudeWorkspace } } : {}) })
+/** Plain-language hint for Claude's "key not scoped to a workspace" error. */
+export function claudeHint(msg: string): string {
+  return /not scoped to a workspace|anthropic-workspace-id/i.test(msg)
+    ? `${msg}\nYour Claude key belongs to the whole organisation. Either paste a Workspace ID in Settings → API Keys → Claude, or create a new key inside a workspace in the Claude Console.`
+    : msg
 }
 /** "https://x.com/v1/" or ".../v1/chat/completions" → "https://x.com/v1" (we append /chat/completions ourselves). */
 export function normalizeBaseUrl(u: string): string {
@@ -152,7 +163,7 @@ type ClaudeImageType = Anthropic.Beta.BetaBase64ImageSource['media_type']
 
 async function callClaude(key: string, o: LlmOptions): Promise<string> {
   // the app rotates keys itself (llmText), so no SDK-level retries
-  const client = new Anthropic({ apiKey: key, maxRetries: 0, timeout: 300_000 })
+  const client = claudeClient(key, 300_000)
   const content: Anthropic.Beta.BetaContentBlockParam[] = o.parts.map((p) =>
     'text' in p
       ? { type: 'text', text: p.text }
@@ -187,7 +198,7 @@ async function callClaude(key: string, o: LlmOptions): Promise<string> {
     return text
   } catch (e) {
     if (e instanceof Anthropic.APIUserAbortError) throw Object.assign(new Error('Canceled'), { name: 'AbortError' })
-    if (e instanceof Anthropic.APIError && typeof e.status === 'number') throw new HttpError(e.status, `Claude ${e.status}: ${e.message}`)
+    if (e instanceof Anthropic.APIError && typeof e.status === 'number') throw new HttpError(e.status, claudeHint(`Claude ${e.status}: ${e.message}`))
     throw e
   }
 }
@@ -265,7 +276,7 @@ export async function testKey(provider: Provider, key: string): Promise<{ ok: bo
       return { ok: true, detail: `${models.length} models`, models }
     }
     if (provider === 'claude') {
-      const client = new Anthropic({ apiKey: key, maxRetries: 0, timeout: 15_000 })
+      const client = claudeClient(key, 15_000)
       const models: string[] = []
       for await (const m of client.models.list()) models.push(m.id)
       return { ok: true, detail: `${models.length} models`, models }
@@ -281,6 +292,6 @@ export async function testKey(provider: Provider, key: string): Promise<{ ok: bo
     if (!res.ok) return { ok: false, detail: await readError(res) }
     return { ok: true, detail: 'Key valid' }
   } catch (e) {
-    return { ok: false, detail: (e as Error).message }
+    return { ok: false, detail: claudeHint((e as Error).message) }
   }
 }

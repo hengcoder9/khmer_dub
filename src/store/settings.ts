@@ -20,6 +20,8 @@ interface SettingsState {
   openrouterModel: string
   /** CodeCraft (OpenAI-compatible gateway): base URL from its dashboard, e.g. https://…/v1 */
   codecraftBaseUrl: string
+  /** Claude: workspace for an organisation-level key (sent as anthropic-workspace-id) */
+  claudeWorkspaceId: string
   codecraftModel: string
   /** which AI reads on-screen subtitles */
   screenReader: 'gemini' | 'codecraft'
@@ -69,6 +71,7 @@ export const useSettings = create<SettingsState>()(
       geminiModel: 'gemini-3.8-flash',
       openrouterModel: 'google/gemini-2.5-flash',
       codecraftBaseUrl: '',
+      claudeWorkspaceId: '',
       codecraftModel: 'gemini-3.1-pro',
       screenReader: 'gemini',
       claudeModel: DEFAULT_CLAUDE_MODEL,

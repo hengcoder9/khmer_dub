@@ -75,3 +75,31 @@ describe('CodeCraft “Get API key” link', () => {
     expect(codecraftDashboard('javascript:alert(1)')).toBeNull()
   })
 })
+
+describe('Claude organisation keys (workspace header)', () => {
+  const seen: Array<Record<string, string>> = []
+  const stub = (body: unknown, status = 200) =>
+    vi.stubGlobal('fetch', async (_url: string, init: { headers?: Headers | Record<string, string> } = {}) => {
+      const h = init.headers instanceof Headers ? Object.fromEntries(init.headers.entries()) : { ...(init.headers ?? {}) }
+      seen.push(Object.fromEntries(Object.entries(h).map(([k, v]) => [k.toLowerCase(), String(v)])))
+      return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
+    })
+
+  it('sends anthropic-workspace-id when a Workspace ID is set', async () => {
+    seen.length = 0
+    // the reply streams in the app; a plain 400 is enough to see the request headers (4xx is not retried)
+    stub({ type: 'error', error: { type: 'invalid_request_error', message: 'test stop' } }, 400)
+    keyPool.set([{ id: 'a1', provider: 'claude', key: 'sk-ant-x' }])
+    setLlmConfig({ claudeWorkspaceId: 'wrkspc_123' })
+    await expect(llmText({ provider: 'claude', model: 'claude-opus-5-5', parts: [{ text: 'hi' }] })).rejects.toThrow(/test stop/)
+    expect(seen[0]['anthropic-workspace-id']).toBe('wrkspc_123')
+    setLlmConfig({ claudeWorkspaceId: '' })
+  })
+
+  it('explains the "not scoped to a workspace" error in plain words', async () => {
+    stub({ type: 'error', error: { type: 'invalid_request_error', message: 'This API key is not scoped to a workspace, so this request must include the anthropic-workspace-id header' } }, 400)
+    const r = await testKey('claude', 'sk-ant-x')
+    expect(r.ok).toBe(false)
+    expect(r.detail).toMatch(/paste a Workspace ID in Settings → API Keys → Claude/)
+  })
+})
