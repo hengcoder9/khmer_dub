@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="km">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>KhmerDub Studio — បញ្ចូលសំឡេងខ្មែរដោយ AI</title>
+    <meta name="description" content="KhmerDub Studio: dub videos into Khmer with AI — subtitles, translation, Khmer voices and export, on your Windows PC." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Kantumruy+Pro:wght@400;500;600;700&display=swap" />
+    <style>
+      :root {
+        --bg: #0a0a0b; --card: #141416; --card2: #1a1a1d; --border: #26262a; --fg: #f4f4f5; --muted: #a1a1aa; --faint: #71717a;
+        --accent: #f97316; --accent-soft: rgba(249, 115, 22, 0.12);
+        color-scheme: dark;
+      }
+      @media (prefers-color-scheme: light) {
+        :root { --bg: #fafafa; --card: #ffffff; --card2: #f4f4f5; --border: #e4e4e7; --fg: #18181b; --muted: #52525b; --faint: #8a8a93; --accent: #ea580c; --accent-soft: rgba(234, 88, 12, 0.1); color-scheme: light; }
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; background: var(--bg); color: var(--fg); font-family: Inter, 'Kantumruy Pro', 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+      body { min-height: 100vh; display: flex; flex-direction: column;
+        background: radial-gradient(800px 380px at 50% -60px, var(--accent-soft), transparent 70%), var(--bg); }
+      a { color: inherit; }
+      .wrap { width: min(1040px, 100%); margin: 0 auto; padding: 0 20px; }
+      header { display: flex; align-items: center; gap: 10px; padding: 18px 0; }
+      .logo { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 800; }
+      header b { font-size: 16px; }
+      header .grow { flex: 1; }
+      header a.small { color: var(--muted); text-decoration: none; font-size: 14px; }
+      header a.small:hover { color: var(--fg); }
+      .hero { text-align: center; padding: 64px 0 40px; }
+      .badge { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; border-radius: 99px; border: 1px solid var(--border); background: var(--card); color: var(--muted); font-size: 13px; }
+      .badge i { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; display: inline-block; }
+      h1 { font-size: clamp(32px, 6vw, 56px); line-height: 1.2; letter-spacing: -0.02em; margin: 20px 0 10px; }
+      h1 span { color: var(--accent); }
+      .sub { color: var(--muted); font-size: clamp(16px, 2.2vw, 19px); line-height: 1.7; max-width: 680px; margin: 0 auto; }
+      .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 32px; }
+      .btn { display: inline-flex; align-items: center; gap: 10px; height: 50px; padding: 0 22px; border-radius: 12px; font-weight: 700; font-size: 16px; text-decoration: none; border: 1px solid var(--border); background: var(--card); }
+      .btn:hover { background: var(--card2); }
+      .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+      .btn.primary:hover { filter: brightness(1.07); }
+      .btn svg { width: 20px; height: 20px; }
+      .meta { color: var(--faint); font-size: 13px; margin-top: 12px; }
+      .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; padding: 24px 0 56px; }
+      .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 20px; }
+      .card .ic { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); margin-bottom: 12px; }
+      .card .ic svg { width: 19px; height: 19px; }
+      .card h3 { margin: 0 0 4px; font-size: 16px; }
+      .card p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.65; }
+      footer { margin-top: auto; border-top: 1px solid var(--border); color: var(--faint); font-size: 13px; }
+      footer .wrap { display: flex; gap: 16px; padding-top: 16px; padding-bottom: 16px; flex-wrap: wrap; }
+      footer .grow { flex: 1; }
+      svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+      @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } .hero { padding-top: 40px; } }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <span class="logo">K</span><b>KhmerDub Studio</b><span class="grow"></span>
+        <a class="small" href="https://github.com/hengcoder9/khmer_dub/releases" target="_blank" rel="noopener">Releases</a>
+      </header>
+
+      <section class="hero">
+        <span class="badge"><i></i><span id="ver">Windows 10 / 11</span></span>
+        <h1>បញ្ចូលសំឡេង<span>ខ្មែរ</span>ដោយ AI</h1>
+        <p class="sub">បកប្រែ និងបញ្ចូលសំឡេងវីដេអូជាភាសាខ្មែរ — អក្សររត់ ការបកប្រែ សំឡេងខ្មែរ និងនាំចេញ ទាំងអស់នៅលើកុំព្យូទ័ររបស់អ្នក។<br />
+          <span style="font-size:.9em">Dub any video into Khmer: subtitles, AI translation, natural Khmer voices and export — on your PC.</span></p>
+        <div class="cta">
+          <a class="btn primary" id="dl" href="https://github.com/hengcoder9/khmer_dub/releases/latest">
+            <svg viewBox="0 0 24 24"><path d="M12 15V3M7 10l5 5 5-5M5 21h14" /></svg>ទាញយកសម្រាប់ Windows
+          </a>
+        </div>
+        <p class="meta" id="meta">សាកល្បងឥតគិតថ្លៃ ៣ ថ្ងៃ · Free 3-day trial</p>
+      </section>
+
+      <section class="grid">
+        <div class="card"><span class="ic"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M7 15h4M15 15h2M7 11h2M13 11h4" /></svg></span>
+          <h3>អក្សររត់ស្វ័យប្រវត្តិ</h3><p>ស្ដាប់ និងសរសេរអក្សររត់ ឬអានអក្សរនៅលើអេក្រង់ផ្ទាល់។</p></div>
+        <div class="card"><span class="ic"><svg viewBox="0 0 24 24"><path d="m5 8 6 6M4 14l6-6 2-3M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6" /></svg></span>
+          <h3>បកប្រែដោយ AI</h3><p>បកប្រែជាភាសាខ្មែរដោយ Gemini ឬ Claude ហើយកែសម្រួលបានគ្រប់បន្ទាត់។</p></div>
+        <div class="card"><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3" /></svg></span>
+          <h3>សំឡេងខ្មែរធម្មជាតិ</h3><p>សំឡេងប្រុស ស្រី តាមតួអង្គ រួចនាំចេញវីដេអូរួចរាល់ជាមួយស្លាកសញ្ញារបស់អ្នក។</p></div>
+      </section>
+    </div>
+
+    <footer>
+      <div class="wrap"><span>© <span id="y"></span> KhmerDub Studio</span><span class="grow"></span>
+        <span>បង់ប្រាក់តាម KHQR · Pay with KHQR</span></div>
+    </footer>
+
+    <script>
+      document.getElementById('y').textContent = new Date().getFullYear()
+      // point the button straight at the newest installer; the releases page stays as the fallback
+      fetch('https://api.github.com/repos/hengcoder9/khmer_dub/releases/latest')
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((rel) => {
+          const exe = (rel.assets || []).find((a) => /\.exe$/i.test(a.name))
+          if (!exe) return
+          document.getElementById('dl').href = exe.browser_download_url
+          const v = String(rel.tag_name || '').replace(/^v/, '')
+          document.getElementById('ver').textContent = `ជំនាន់ ${v} · Windows 10 / 11`
+          document.getElementById('meta').textContent = `${Math.round(exe.size / 1048576)} MB · សាកល្បងឥតគិតថ្លៃ ៣ ថ្ងៃ · Free 3-day trial`
+        })
+        .catch(() => {})
+    </script>
+  </body>
+</html>
