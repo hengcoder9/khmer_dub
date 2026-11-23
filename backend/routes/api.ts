@@ -4,7 +4,8 @@ import { join } from 'node:path'
 import type { Gender } from '../../shared/types'
 import { cancelJob, createJob, listJobs, setGpuLanes } from '../queue'
 import { subscribe } from '../lib/events'
-import { keyPool, type Provider } from '../lib/keys'
+import { keyPool, type Provider, type RouteMode } from '../lib/keys'
+import { configureGateway, gatewayState, type GatewayConfig } from '../lib/gateway'
 import { setLlmConfig, testKey } from '../lib/llm'
 import { setCloneLanes, nextCloneLane } from '../lib/python'
 import { cacheDir } from '../lib/paths'
@@ -39,6 +40,32 @@ export async function apiRoutes(app: FastifyInstance) {
   app.get('/keys/stats', async () => ({ gemini: keyPool.stats('gemini'), openrouter: keyPool.stats('openrouter'), claude: keyPool.stats('claude'), codecraft: keyPool.stats('codecraft') }))
   app.post<{ Body: { provider: Provider } }>('/keys/test', async (req) => {
     const results = await Promise.all(keyPool.all(req.body.provider).map(async (k) => ({ id: k.id, ...(await testKey(k.provider, k.key)) })))
+    return { results }
+  })
+
+  // AI gateway: key routing, telemetry, local /v1 server
+  app.get('/gateway/state', async () => ({ mode: keyPool.mode, keys: keyPool.snapshot(), telemetry: keyPool.telemetry(150), gateway: gatewayState() }))
+  app.post<{ Body: { mode: RouteMode } }>('/gateway/mode', async (req) => {
+    if (['spread', 'rotate', 'adaptive'].includes(req.body?.mode)) keyPool.mode = req.body.mode
+    return { mode: keyPool.mode }
+  })
+  app.post<{ Body: Partial<GatewayConfig> }>('/gateway/config', async (req) => {
+    const b = req.body ?? {}
+    const port = b.port === undefined ? undefined : Math.round(Number(b.port))
+    if (port !== undefined && !(port >= 1024 && port <= 65535)) throw Object.assign(new Error('Port must be 1024–65535'), { statusCode: 400 })
+    return configureGateway({ ...b, port })
+  })
+  app.post<{ Body: { id: string } }>('/gateway/uncool', async (req) => ({ ok: keyPool.uncool(req.body?.id) }))
+  app.post('/gateway/probe', async () => {
+    const providers: Provider[] = ['gemini', 'claude', 'openrouter', 'codecraft']
+    const all = providers.flatMap((p) => keyPool.all(p))
+    const results = await Promise.all(
+      all.map(async (k) => {
+        const t0 = Date.now()
+        const r = await testKey(k.provider, k.key)
+        return { id: k.id, ok: r.ok, detail: r.detail, ms: Date.now() - t0 }
+      })
+    )
     return { results }
   })
 

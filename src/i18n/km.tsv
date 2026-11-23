@@ -1,5 +1,5 @@
 about.check	ពិនិត្យរកកំណែថ្មី
-about.credits	ប្រើ ffmpeg (GPL), faster-whisper, Demucs, Resemblyzer, NLLB-200, F5-TTS, Edge-TTS និងពុម្ពអក្សរ Kantumruy Pro & Hanuman (OFL)។
+about.credits	ប្រើ ffmpeg (GPL), faster-whisper, Demucs, Resemblyzer, NLLB-200, F5-TTS, Edge-TTS និងពុម្ពអក្សរ Kantumruy Pro, Hanuman, Inter & JetBrains Mono (OFL)។
 about.latest	អ្នកកំពុងប្រើកំណែចុងក្រោយបំផុត
 account.local	របៀបក្នុងម៉ាស៊ីន — មិនត្រូវការគណនី
 account.desc	គម្រោង សំឡេង និងម៉ូដែលរបស់អ្នក ស្ថិតនៅលើកុំព្យូទ័រនេះ។ មុខងារលើពពក (Gemini, OpenRouter, Edge-TTS) ប្រើសោ API ផ្ទាល់ខ្លួនរបស់អ្នក ដែលត្រូវបានអ៊ិនគ្រីបដោយ Windows DPAPI ហើយមិនដែលសរសេរចូលឯកសារគម្រោង ឬកំណត់ហេតុឡើយ។
@@ -211,7 +211,6 @@ footer.free	នៅទំនេរ
 footer.idle	ទំនេរ
 footer.jobs	ការងារ
 footer.keys	សោ
-footer.keysTitle	សោ API Gemini (រួចរាល់ / សរុប)
 footer.noJobs	មិនទាន់មានការងារ
 footer.removeConfirm	លុបភាគ
 general.defaultFemale	សំឡេងស្រីលំនាំដើម
@@ -646,3 +645,306 @@ cc.getKey	យក API key →
 cc.getKeyHint	បិទភ្ជាប់ Base URL ដើម្បីបានតំណយក API key
 keys.claudeWs	Workspace ID (សម្រាប់ key របស់អង្គភាពតែប៉ុណ្ណោះ)
 keys.claudeWsHint	ត្រូវការនៅពេល Claude និយាយថា «This API key is not scoped to a workspace»។ រកវានៅ Claude Console → Workspaces (wrkspc_…)។ ទុកទទេសម្រាប់ key ធម្មតា។
+wm.desc2	ស្លាកសញ្ញា និង/ឬ ឈ្មោះឆានែលរបស់អ្នក លើគ្រប់វីដេអូដែលនាំចេញ ជាមួយចលនាជាជម្រើស។ PNG ផ្ទៃថ្លា មើលទៅល្អបំផុត។
+wm.previewEmpty	បន្ថែមស្លាកសញ្ញា ឬអក្សរ
+wm.removeLogo	លុបស្លាកសញ្ញា
+wm.text	អក្សរ
+wm.textPh	ឧ. @ឆានែលរបស់ខ្ញុំ ឬ ខ្មែរឌឹប
+wm.textSize	ទំហំអក្សរ
+wm.animation	ចលនា
+wm.anNone	គ្មាន
+wm.anNoneHint	នៅមួយកន្លែង
+wm.anPulse	ភ្លឹបភ្លែត
+wm.anPulseHint	ស្រអាប់ចូល និងចេញថ្នមៗ
+wm.anCorners	ជ្រុង
+wm.anCornersHint	លោតទៅជ្រុងបន្ទាប់ — ពិបាកកាត់ចេញពេលគេយកទៅបង្ហោះម្តងទៀត
+wm.anScroll	រំកិល
+wm.anScrollHint	រំកិលកាត់អេក្រង់ ដូចអក្សររត់ព័ត៌មាន
+wm.anFloat	អណ្តែត
+wm.anFloatHint	រសាត់ថ្នមៗជុំវិញជ្រុងរបស់វា
+wm.every	ល្បឿន (វិនាទីក្នុងមួយជុំ)
+wm.row	ជួរ
+top.tagline	ស្ទូឌីយោបញ្ចូលសំឡេង និងវីដេអូ AI
+top.liveMore	កំពុងដំណើរការ {{n}} ការងារ
+top.batch	បាច់
+top.batchTitle	ស្វ័យប្រវត្តិជាបាច់ — បញ្ចូលសំឡេងច្រើនភាគ
+dock.completed	បានបញ្ចប់
+dock.failed	បរាជ័យ
+dock.queued	កំពុងរង់ចាំ
+dock.live	កំពុងដំណើរការផ្ទាល់
+dock.stop	បញ្ឈប់
+dock.summary	{{n}} កំពុងដំណើរការ
+dock.more	ទៀត
+dock.clear	សម្អាតទាំងអស់
+dock.expand	បង្ហាញ
+dock.collapse	លាក់
+footer.stopAll	បញ្ឈប់ទាំងអស់
+footer.stopped	កំពុងបញ្ឈប់ {{n}} ការងារ
+footer.freeVram	ដោះ VRAM
+footer.freeVramTitle	បិទម៉ាស៊ីន Whisper / Demucs / ក្លូនសំឡេង ដើម្បីដោះអង្គចងចាំ GPU
+footer.vramFreed	បានបិទម៉ាស៊ីន AI — អង្គចងចាំ GPU ត្រូវបានដោះ។ វានឹងបើកវិញនៅការងារបន្ទាប់។
+display.title	អេក្រង់ ទំហំបង្ហាញ និងពណ៌
+display.heading	អេក្រង់ និងទំហំបង្ហាញ
+display.detected	រកឃើញ
+display.auto	សម្រួលស្វ័យប្រវត្តិ
+display.autoDone	បានសម្រួលសម្រាប់ {{name}} ({{scale}}% UI · ម៉ូនីទ័រ {{px}}px)
+display.presets	ទំហំបង្ហាញកំណត់ជាមុន
+display.scale	ទំហំអក្សរ និងប៊ូតុង
+display.player	ទទឹងម៉ូនីទ័រវីដេអូ
+display.look	រូបរាងស្ទូឌីយោ
+display.saved	រក្សាទុកស្វ័យប្រវត្តិសម្រាប់កុំព្យូទ័រនេះ
+display.reset	កំណត់ឡើងវិញ 100%
+welcome.badge	ស្ទូឌីយោបញ្ចូលសំឡេងខ្មែរដោយ AI
+welcome.f1	ស្ដាប់សរសេរ + បកប្រែ
+welcome.f2	សំឡេងខ្មែរ Neural និងក្លូនសំឡេង
+welcome.f3	រោងចក្របាច់សម្រាប់រឿងភាគទាំងមូល
+auto.viewSetup	រៀបចំ
+auto.viewCockpit	ផ្ទាំងបញ្ជាផ្ទាល់
+auto.pausedChip	បានផ្អាក
+auto.runningChip	កំពុងដំណើរការ
+auto.doneChip	រួចរាល់
+auto.sumAi	AI និងចំណងជើងរង
+auto.sumLang	ភាសា និងតួសម្ដែង
+auto.sumAudio	សំឡេង និងការនាំចេញ
+auto.sumPace	ល្បឿនបាច់
+auto.eps	ភាគ
+auto.parallel	ស្របគ្នា
+auto.pParallel	ភាគដំណើរការក្នុងពេលតែមួយ
+auto.batchRunning	បាច់កំពុងដំណើរការ: បានបញ្ចប់ {{d}}/{{n}}
+cockpit.line	ខ្សែផលិតកម្ម AI {{n}} ស្ថានីយ
+cockpit.active	រោងចក្រកំពុងដំណើរការ
+cockpit.idle	ទំនេរ
+cockpit.activeN	សកម្ម
+cockpit.hold	រង់ចាំ
+cockpit.ready	រួចរាល់
+cockpit.standby	រង់ចាំ
+cockpit.vault	ឃ្លាំងរួចរាល់
+cockpit.open	បើកថត
+cockpit.vaultEmpty	MP4 ដែលរួចរាល់នឹងនៅទីនេះ
+cockpit.yield	ទិន្នផល
+cockpit.intake	ចូល
+cockpit.master	MP4 មេ
+cockpit.conveyor	ខ្សែដំណើរការស្របគ្នាផ្ទាល់
+cockpit.lanes	{{n}} ផ្លូវ · ចុចដើម្បីពិនិត្យ
+cockpit.exported	បាននាំចេញ ✓
+cockpit.failed	បរាជ័យ
+cockpit.queue	កំពុងរង់ចាំ
+cockpit.elapsed	រយៈពេលកន្លងទៅ
+cockpit.eta	ពេលនៅសល់
+cockpit.done	រួចរាល់
+cockpit.failedN	បរាជ័យ
+cockpit.inspect	អ្នកពិនិត្យ
+cockpit.skip	រំលង
+cockpit.inspectHint	ចុចលើផ្លូវភាគណាមួយ ដើម្បីមើលស្ថានីយនីមួយៗ។
+top.gateway	ច្រកផ្លូវ AI — ការបែងចែកសោ និងទិន្នន័យផ្ទាល់
+footer.keysTitle	ច្រកផ្លូវ AI — សោ Gemini (រួចរាល់ / សរុប)
+gw.title	ច្រកផ្លូវ AI
+gw.badge	អ្នកបែងចែកសោ
+gw.copyUrl	ចម្លង URL
+gw.desc	បញ្ជូនសំណើ AI នីមួយៗតាមសោ API ផ្ទាល់ខ្លួនរបស់អ្នក ជាមួយសុខភាពផ្ទាល់ ពេលសម្រាក និងច្រក /v1 ដែលត្រូវគ្នានឹង OpenAI សម្រាប់កម្មវិធីផ្សេង។
+gw.mRotate	បង្វិលតាមលំដាប់
+gw.mAdaptive	សមត្ថភាពបត់បែន
+gw.mSpread	ចែកចាយថាមវន្ត
+gw.engineOn	ច្រកផ្លូវកំពុងដំណើរការ
+gw.engineInApp	បែងចែកក្នុងកម្មវិធី
+gw.probe	ពិនិត្យសុខភាព
+gw.skipAll	រំលងពេលសម្រាក
+gw.addKey	បន្ថែមសោ API
+gw.guide	មគ្គុទេសក៍
+gw.gRotate	ប្រើសោមួយរហូតដល់វាដល់ដែនកំណត់ ឬបរាជ័យ ទើបប្ដូរទៅសោបន្ទាប់។
+gw.gAdaptive	ជ្រើសសោដែលជោគជ័យច្រើន លឿនជាង និងមានសំណើកំពុងដំណើរការតិចជាង។
+gw.gSpread	វេនគ្នា៖ សោនីមួយៗដែលរួចរាល់ប្ដូរវេនគ្នា។ លឿនបំផុតសម្រាប់បាច់ធំ។
+gw.sDaemon	ម៉ាស៊ីនច្រកផ្លូវ
+gw.off	បិទ (ក្នុងកម្មវិធីតែប៉ុណ្ណោះ)
+gw.sPool	បណ្ដុំសោ
+gw.ready	រួចរាល់
+gw.cooling	កំពុងសម្រាក
+gw.failed	បរាជ័យ
+gw.sWorkers	កំពុងដំណើរការ
+gw.requests	សំណើ
+gw.sSla	ល្បឿន និងគុណភាព
+gw.sEngine	ម៉ាស៊ីនបែងចែក
+gw.tMatrix	ផែនទីបែងចែក
+gw.tKeys	សោដែលបានភ្ជាប់
+gw.tGateway	ច្រកផ្លូវ និងដំណើរការ
+gw.tTele	ទិន្នន័យផ្ទាល់
+gw.showNames	បង្ហាញឈ្មោះ
+gw.hideNames	លាក់ឈ្មោះ
+gw.orbit	គន្លងសង្កេត
+gw.keys	សោ
+gw.inFlight	កំពុងដំណើរការ
+gw.clickNode	ចុចលើសោណាមួយ ដើម្បីពិនិត្យ
+gw.noKeys	មិនទាន់មានសោ API — បន្ថែមនៅ ការកំណត់ → សោ API។
+gw.live	ផ្ទាល់
+gw.enable	ច្រកក្នុងម៉ាស៊ីន ត្រូវគ្នានឹង OpenAI (/v1)
+gw.enableHint	អនុញ្ញាតឱ្យកម្មវិធីផ្សេងលើកុំព្យូទ័រនេះ ប្រើសោរបស់អ្នកតាមអ្នកបែងចែកដដែល។ វាស្ដាប់តែលើ 127.0.0.1 ហើយត្រូវការសោច្រកផ្លូវខាងក្រោម។
+gw.port	ច្រក
+gw.key	សោច្រកផ្លូវ
+gw.noKey	(បង្កើតនៅពេលអ្នកបើកច្រកផ្លូវ)
+gw.regen	សោថ្មី (សោចាស់ឈប់ដំណើរការ)
+gw.routing	ការបែងចែកម៉ូដែល
+gw.example	សាកល្បង
+gw.status	ស្ថានភាព
+gw.online	កំពុងដំណើរការ
+gw.offline	បិទ
+gw.served	បានបម្រើ
+gw.endpoints	ចំណុចចូល
+gw.noCalls	មិនទាន់មានការហៅ AI — វានឹងបង្ហាញនៅទីនេះភ្លាមៗ។
+gw.coolingFor	កំពុងសម្រាក
+gw.busy	រវល់
+gw.fails	បរាជ័យ
+gw.last	ចុងក្រោយ
+gw.verify	ផ្ទៀងផ្ទាត់
+gw.skip	រំលងពេលសម្រាក
+gw.footer	{{n}} សំណើសកម្ម តាម {{mode}}
+gw.calls	ការហៅ
+gw.servedShort	បានបម្រើតាម /v1
+gw.started	ច្រកផ្លូវដំណើរការនៅ {{url}}
+gw.copied	បានចម្លង {{what}}
+gw.probeOk	សោទាំង {{n}} មានសុខភាពល្អ
+gw.probeBad	សោ {{bad}} ក្នុងចំណោម {{n}} មិនឆ្លងការពិនិត្យ
+acct.title	គណនី និងការជាវ
+acct.desc	ចូលគណនី ដើម្បីប្រើឧបករណ៍ AI។ ជ្រើសគម្រោង នៅពេលការសាកល្បងឥតគិតថ្លៃបញ្ចប់។
+acct.heroTitle	KhmerDub Studio Pro
+acct.heroText	ស្ដាប់សរសេរ បកប្រែ សំឡេងខ្មែរ Neural បញ្ចូលសំឡេងជាបាច់ និងនាំចេញ — ក្នុងស្ទូឌីយោតែមួយ។
+acct.f1	សាកល្បងឥតគិតថ្លៃ {{n}} ថ្ងៃ មិនចាំបាច់បង់ប្រាក់
+acct.f2	1, 3, 6 ខែ, 1 ឆ្នាំ ឬ មួយជីវិត
+acct.f3	បង់តាម KHQR — ABA, ACLEDA, Wing, Bakong
+acct.signIn	ចូលគណនី
+acct.signUp	បង្កើតគណនី
+acct.name	ឈ្មោះ
+acct.namePh	ឈ្មោះរបស់អ្នក
+acct.email	អ៊ីមែល
+acct.password	ពាក្យសម្ងាត់
+acct.startTrial	បង្កើតគណនី និងចាប់ផ្ដើមសាកល្បងឥតគិតថ្លៃ
+acct.server	ម៉ាស៊ីនមេគណនី
+acct.serverSaved	បានរក្សាទុកម៉ាស៊ីនមេ
+acct.welcomeBack	បានចូលគណនី
+acct.welcomeNew	បានបង្កើតគណនី — ការសាកល្បងឥតគិតថ្លៃបានចាប់ផ្ដើម
+acct.backPlans	ត្រឡប់ទៅគម្រោង
+acct.paid	បានទទួលការបង់ប្រាក់ — {{plan}} ដំណើរការហើយ!
+acct.thanks	អរគុណ! {{plan}} ដំណើរការហើយ
+acct.done	រួចរាល់
+acct.noQr	មិនទាន់មាន QR ហាង — សូមទាក់ទងផ្នែកជំនួយ។
+acct.orderRef	លេខយោងការបញ្ជាទិញ
+acct.step1	បើក ABA, ACLEDA, Wing ឬកម្មវិធី Bakong ណាមួយ ហើយស្កេន KHQR។
+acct.step2	បង់ចំនួន {{amount}} ឱ្យត្រឹមត្រូវ។
+acct.step3	សរសេរលេខយោង {{ref}} ក្នុងចំណាំផ្ទេរប្រាក់។
+acct.step4m	គម្រោងរបស់អ្នកនឹងដំណើរការ ភ្លាមៗពេលយើងបញ្ជាក់ការបង់ប្រាក់។
+acct.step4a	គម្រោងរបស់អ្នកនឹងដំណើរការដោយស្វ័យប្រវត្តិក្នុងរយៈពេលប៉ុន្មានវិនាទី។
+acct.openPay	បើកទំព័របង់ប្រាក់
+acct.waiting	កំពុងរង់ចាំការបង់ប្រាក់… (នៅសល់ {{time}})
+acct.orderEnded	ការបញ្ជាទិញនេះ {{status}}។ ត្រឡប់ក្រោយ ហើយជ្រើសគម្រោងម្ដងទៀត។
+acct.help	ត្រូវការជំនួយ? ទាក់ទង
+acct.copied	បានចម្លង
+acct.currentPlan	គម្រោងបច្ចុប្បន្ន
+acct.lifetime	មួយជីវិត — មិនផុតកំណត់
+acct.noPlan	គ្មានគម្រោងសកម្ម
+acct.lifetimeHint	ឧបករណ៍ AI ទាំងអស់បើកជារៀងរហូត។
+acct.until	នៅសល់ {{d}} ថ្ងៃ · រហូតដល់ {{date}}
+acct.expired	ជ្រើសគម្រោងខាងក្រោម ដើម្បីបើកការស្ដាប់សរសេរ បកប្រែ សំឡេង និងនាំចេញ។
+acct.offline	គ្មានអ៊ីនធឺណិត — ប្រើស្ថានភាពដែលបានរក្សាទុក
+acct.noPlans	មិនអាចផ្ទុកគម្រោងបានទេ។
+acct.retry	ព្យាយាមម្ដងទៀត
+acct.once	បង់តែម្ដង ប្រើជារៀងរហូត
+acct.mo	ខែ
+acct.save	សន្សំ
+acct.monthly	គិតប្រាក់ប្រចាំខែ
+acct.owned	មានរួចហើយ
+acct.extend	បន្ថែម
+acct.buy	ទិញ
+acct.redeemed	បានបន្ថែម {{plan}} ទៅគណនីរបស់អ្នក
+acct.haveCode	មានលេខកូដអាជ្ញាប័ណ្ណ?
+acct.redeem	ប្ដូរយក
+acct.noOrders	មិនទាន់មានការបង់ប្រាក់។
+acct.pwChanged	បានប្ដូរពាក្យសម្ងាត់ — ឧបករណ៍ផ្សេងៗត្រូវបានចាកចេញ
+acct.curPw	ពាក្យសម្ងាត់បច្ចុប្បន្ន
+acct.newPw	ពាក្យសម្ងាត់ថ្មី (យ៉ាងតិច 8)
+acct.admin	ផ្ទាំងគ្រប់គ្រង
+acct.signOut	ចាកចេញ
+acct.signedOut	បានចាកចេញ
+acct.tPlans	គម្រោង
+acct.tHistory	ការបង់ប្រាក់
+acct.tSecurity	ពាក្យសម្ងាត់
+acct.signInTrial	ចូល · សាកល្បងឥតគិតថ្លៃ
+acct.chipLifetime	មួយជីវិត
+acct.chipTrial	សាកល្បង · {{d}} ថ្ងៃ
+acct.chipUpgrade	ដំឡើងគម្រោង
+common.save	រក្សាទុក
+acct.checkoutHint	ទំព័របង់ប្រាក់ ABA បានបើកក្នុងកម្មវិធីរុករក។ ស្កេន KHQR ឬចុច "Open in ABA Mobile"។
+acct.openAba	បើកទំព័របង់ប្រាក់ ABA
+acct.noQrAdminTitle	មិនទាន់កំណត់ការបង់ប្រាក់
+acct.noQrAdmin	បញ្ចូលសោសម្ងាត់ AnajakPay (KHQR ស្វ័យប្រវត្តិ) ឬផ្ទុករូប KHQR ហាងរបស់អ្នក (ដោយដៃ) នៅ ផ្ទាំងគ្រប់គ្រង → ការកំណត់។
+acct.openSettings	បើក ផ្ទាំងគ្រប់គ្រង → ការកំណត់
+acct.noQrTitle	ការបង់តាម QR មិនទាន់អាចប្រើបានទេ
+acct.noQrSupport	ផ្ញើលេខយោងការបញ្ជាទិញទៅ {{who}} ដើម្បីបង់ប្រាក់ — ឬប្រើលេខកូដអាជ្ញាប័ណ្ណ។
+acct.noQrCode	សូមទាក់ទងអ្នកលក់ជាមួយលេខយោងការបញ្ជាទិញ ឬប្ដូរយកលេខកូដអាជ្ញាប័ណ្ណ។
+acct.scanWith	ស្កេនដោយ ABA Mobile ឬកម្មវិធីធនាគារផ្សេងដែលគាំទ្រ KHQR
+rs.title	អានអក្សររត់លើអេក្រង់
+rs.desc	ពាក្យ និងពេលវេលាច្បាស់លាស់ អានពីរូបភាព មិនមែនស្មានពីសំឡេងទេ។
+rs.area	តំបន់អក្សររត់
+rs.find	រកឱ្យខ្ញុំ
+rs.step1	សម្គាល់កន្លែងអក្សររត់
+rs.read	អានអក្សររត់
+rs.use	ប្រើបន្ទាត់ទាំងនេះ
+rs.adjust	កែតំបន់
+rs.again	ចាប់ផ្តើមឡើងវិញ
+rs.reading	កំពុងអានអក្សររត់ពីរូបភាព…
+rs.translating	កំពុងបកប្រែបន្ទាត់…
+contact.channel	ឆានែល Telegram
+contact.channelSub	ព័ត៌មាន ការអាប់ដេត និងគន្លឹះ
+contact.support	ជំនួយពីអ្នកគ្រប់គ្រង
+contact.supportSub	ជំនួយអំពីគណនី ឬការទូទាត់
+keys.shared	រួម
+keys.sharedHint	ផ្តល់ដោយអ្នកគ្រប់គ្រងជាមួយគម្រោងរបស់អ្នក — អ្នកអាចប្រើបាន ប៉ុន្តែមិនអាចមើល ឬលុបបានទេ
+common.done	រួចរាល់
+gw.inFlightShort	កំពុងរត់
+gw.cTime	ពេលវេលា
+gw.cKey	សោ
+gw.cSource	ប្រភព
+gw.cModel	ម៉ូដែល
+gw.cMs	រយៈពេលឆ្លើយតប
+gw.cResult	លទ្ធផល
+rs.found	បានរកឃើញអក្សររត់
+rs.notFound	មើលមិនឃើញអក្សររត់លើអេក្រង់ — សូមអូសប្រអប់ទៅលើវាដោយខ្លួនឯង
+rs.none	រកមិនឃើញអក្សររត់ក្នុងតំបន់នោះទេ — សូមកែប្រអប់ ហើយសាកម្ដងទៀត
+rs.replace	ជំនួសបន្ទាត់ដែលមានស្រាប់ {{n}} ដោយបន្ទាត់ទាំងនេះ?
+rs.step1b	អូសប្រអប់ឱ្យគ្របលើអក្សររត់ ឬចុច «រកឱ្យខ្ញុំ»។ កម្មវិធីអានតែបន្ទះនេះប៉ុណ្ណោះ ដូច្នេះឡូហ្គោ និងស្លាកសញ្ញា (Watermark) មិនត្រូវបានអានទេ។
+rs.tip	គន្លឹះ៖ ផ្អាកនៅរូបភាពដែលមានអក្សររត់ រួចដាក់ប្រអប់ពីលើវា។
+rs.working	វឌ្ឍនភាពបង្ហាញក្នុងបញ្ជីការងារខាងក្រោម។ វាអាចចំណាយពេលប្រហែលមួយនាទី។
+rs.readOnly	បានអាន {{n}} បន្ទាត់
+rs.readTr	បានអាន និងបកប្រែ {{n}} បន្ទាត់
+rs.trFail	ការបកប្រែបរាជ័យ ({{e}}) — អ្នកអាចបកប្រែនៅពេលក្រោយ
+keys.getClaude	យកសោ →
+keys.claudeUse	ប្រើសម្រាប់ការបកប្រែ ពាក្យបញ្ជាកែដោយ AI និងការបង្រួមបន្ទាត់ នៅពេលកំណត់អ្នកបកប្រែជា Claude។ ការបម្លែងសំឡេងជាអក្សរ និងការអានអេក្រង់ នៅតែប្រើ Gemini។
+keys.claudeModel	ម៉ូដែល Claude
+keys.claudeModelHint	Opus 5.5 = គុណភាពល្អបំផុត · Sonnet 5.5 = លឿនជាង · Haiku 5.5 = ថោកបំផុត
+tl.noClip	សូមដាក់ទីតាំងចាក់លើវីដេអូជាមុនសិន
+tl.lastClip	មិនអាចលុបវីដេអូទាំងមូលបានទេ — សូមកាត់ចែកវាជាមុនសិន
+tl.splitVideo	កាត់ចែកវីដេអូនៅទីតាំងចាក់ (Ctrl+B)
+tl.trimStart	កាត់ចោលពីដើមឈុតដល់ទីតាំងចាក់ (Q)
+tl.trimEnd	កាត់ចោលពីទីតាំងចាក់ដល់ចុងឈុត (W)
+tl.deleteClip	លុបឈុតដែលបានជ្រើស (Delete)
+tl.crop	កាត់ស៊ុម / ទម្រង់
+tl.format	ទម្រង់
+tl.original	ដើម
+tl.fit	របៀបដាក់ឱ្យសម
+tl.fitCrop	កាត់ឱ្យពេញស៊ុម
+tl.fitPad	ដាក់ឱ្យសម មានរបារខ្មៅ
+tl.fitBlur	ដាក់ឱ្យសម មានផ្ទៃខាងក្រោយព្រិល
+update.background	លាក់ (បន្តទាញយក)
+jobGroup.extract	នាំចូលមេឌៀ
+jobGroup.separate	បំបែកសំឡេងនិយាយ (Demucs)
+jobGroup.transcribe	ពេលវេលា និងអក្សររត់
+jobGroup.diarize	ស្គាល់អ្នកនិយាយ
+jobGroup.translate	ការបកប្រែដោយ AI
+jobGroup.tts	ម៉ាស៊ីនសំឡេងខ្មែរ
+jobGroup.mix	លាយសំឡេង
+jobGroup.export	នាំចេញវីដេអូចុងក្រោយ
+jobGroup.download	ទាញយក
+jobGroup.polish	កែលម្អសំឡេង
+jobGroup.genvideo	វីដេអូ AI
+jobGroup.story	វីដេអូ Claude
+jobGroup.ocr	អានអក្សរលើអេក្រង់
+jobGroup.ocrarea	អានអក្សរលើអេក្រង់
+jobGroup.install	កម្មវិធីដំឡើង AI

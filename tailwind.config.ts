@@ -29,9 +29,9 @@ export default {
         sm: 'calc(var(--radius) - 4px)'
       },
       fontFamily: {
-        sans: ['"Kantumruy Pro"', '"Segoe UI"', '"Khmer UI"', '"Leelawadee UI"', 'system-ui', 'sans-serif'],
+        sans: ['Inter', '"Kantumruy Pro"', '"Segoe UI"', '"Khmer UI"', '"Leelawadee UI"', 'system-ui', 'sans-serif'],
         hanuman: ['Hanuman', '"Kantumruy Pro"', '"Khmer UI"', 'serif'],
-        mono: ['"Cascadia Mono"', 'Consolas', 'monospace']
+        mono: ['"JetBrains Mono"', '"Kantumruy Pro"', '"Cascadia Mono"', 'Consolas', 'monospace']
       }
     }
   },

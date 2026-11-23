@@ -3,8 +3,10 @@ import { join } from 'node:path'
 import { writeFileSync } from 'node:fs'
 import { randomBytes } from 'node:crypto'
 import { APP_NAME, type BackendInfo, type FileFilter, type KeyEntry } from '../shared/types'
-import { addKey, listKeys, plainKeys, removeKey } from './keystore'
+import { addKey, listKeys, plainKeys, removeKey, serverIdOf } from './keystore'
+import { forgetKey, syncKeys } from './keysync'
 import { checkForUpdates, downloadUpdate, initUpdater, installUpdate } from './updater'
+import { accountCall, accountState, openAdminPanel, openPayUrl, setAccountServer, signOutLocal } from './account'
 
 let win: BrowserWindow | null = null
 let backend: UtilityProcess | null = null
@@ -146,15 +148,46 @@ ipcMain.handle('shell:openPath', (_e, p: string) =>
   /\.(mp4|mkv|mov|wav|mp3|srt|vtt|ass)$/i.test(p) ? shell.openPath(p) : Promise.resolve('blocked file type')
 )
 
+ipcMain.handle('account:state', () => accountState())
+ipcMain.handle('account:call', async (_e, path: string, body?: unknown) => {
+  try {
+    const data = await accountCall(path, body)
+    // signing in or out changes which shared keys this PC may use
+    if (/^auth\/(login|register|logout)$/.test(path)) void resyncKeys()
+    return { ok: true, data }
+  } catch (e) {
+    const err = e as Error & { offline?: boolean; signedOut?: boolean }
+    return { ok: false, error: err.message, offline: !!err.offline, signedOut: !!err.signedOut }
+  }
+})
+ipcMain.handle('account:setServer', (_e, url: string) => setAccountServer(url))
+ipcMain.handle('account:signOutLocal', () => {
+  const r = signOutLocal()
+  void resyncKeys()
+  return r
+})
+ipcMain.handle('account:openAdmin', () => openAdminPanel())
+ipcMain.handle('account:openPayUrl', (_e, url: string) => openPayUrl(url))
+
+const resyncKeys = async () => {
+  if (await syncKeys()) pushKeys()
+}
+ipcMain.handle('keys:sync', async () => {
+  await resyncKeys()
+  return listKeys()
+})
 ipcMain.handle('keys:list', () => listKeys())
 ipcMain.handle('keys:add', (_e, provider: KeyEntry['provider'], key: string, label?: string) => {
   const r = addKey(provider, key, label)
   pushKeys()
+  void resyncKeys() // back it up to the account
   return r
 })
 ipcMain.handle('keys:remove', (_e, id: string) => {
+  const sid = serverIdOf(id)
   const r = removeKey(id)
   pushKeys()
+  void forgetKey(sid)
   return r
 })
 
@@ -181,6 +214,9 @@ if (!app.requestSingleInstanceLock()) {
     app.setAppUserModelId('com.khmerdub.studio')
     startBackend()
     createWindow()
+    // shared keys from the admin + your saved keys: now, and every 10 minutes (a plan ending stops the shared keys)
+    void resyncKeys()
+    setInterval(() => void resyncKeys(), 10 * 60_000)
     app.on('activate', () => BrowserWindow.getAllWindows().length === 0 && createWindow())
   })
 }

@@ -9,7 +9,7 @@ import { translate, type TranslatePayload } from './pipeline/translate'
 import { tts, type TtsPayload } from './pipeline/tts'
 import { mix, type MixPayload } from './pipeline/mix'
 import { exportEpisode, type ExportPayload } from './pipeline/export'
-import { readScreen, type OcrPayload } from './pipeline/ocr'
+import { readScreen, findSubtitleArea, type OcrPayload, type OcrAreaPayload } from './pipeline/ocr'
 import { installEngines } from './pipeline/pysetup'
 import { download, type DownloadPayload } from './pipeline/download'
 import { polish, type PolishPayload } from './pipeline/polish'
@@ -43,6 +43,7 @@ export function registerAllJobs() {
   registerJob<GenVideoPayload>('genvideo', { lane: 'net', label: (p) => `AI Video from prompt (${p.seconds}s ${p.aspect})`, run: genVideo })
   registerJob<StoryPayload>('story', { lane: 'cpu', label: (p) => `Claude Video: ${p.plan.scenes.length} scenes`, run: renderStory })
   registerJob<OcrPayload>('ocr', { lane: 'net', label: () => 'Read screen subtitles', run: readScreen })
+  registerJob<OcrAreaPayload>('ocrarea', { lane: 'net', label: () => 'Find subtitle area', run: async (p, ctx) => ({ area: await findSubtitleArea(p, ctx) }) })
   registerJob<{ groups: string[]; force?: boolean }>('engines.install', {
     lane: 'cpu',
     label: (p) => `Install engines: ${p.groups.join(', ')}`,

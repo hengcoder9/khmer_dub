@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>KhmerDub Admin</title>
+    <script>
+      try { document.documentElement.dataset.theme = localStorage.getItem('kd-admin-theme') || 'dark' } catch {}
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Kantumruy+Pro:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" />
+    <link rel="stylesheet" href="admin.css?v=3" />
+  </head>
+  <body>
+    <div id="login" class="login hidden">
+      <form id="loginForm" class="login-card">
+        <div class="brand"><span class="logo">K</span><div><b>KhmerDub Studio</b><small>Admin console</small></div></div>
+        <div><h2>Sign in</h2><p class="muted">Use an admin account to manage users, plans and payments.</p></div>
+        <label>Email<input name="email" type="email" required autocomplete="username" placeholder="you@example.com" /></label>
+        <label>Password<input name="password" type="password" required autocomplete="current-password" placeholder="••••••••" /></label>
+        <button class="btn primary lg">Sign in</button>
+        <p class="err" id="loginErr"></p>
+      </form>
+    </div>
+
+    <div id="app" class="hidden">
+      <aside class="side">
+        <a class="brand-row" href="#dashboard" title="Dashboard">
+          <span class="logo">K</span>
+          <div class="brand-text"><b>KhmerDub Studio</b><small id="brandSub">Admin console</small></div>
+          <span id="brandChev"></span>
+        </a>
+        <nav id="nav"></nav>
+        <div class="me-wrap">
+          <div class="menu hidden" id="meMenu" role="menu">
+            <a href="#account" role="menuitem" id="mAccount"></a>
+            <button type="button" role="menuitem" id="mTheme"></button>
+            <button type="button" role="menuitem" class="danger" id="logout"></button>
+          </div>
+          <button type="button" class="me" id="meBtn" aria-haspopup="menu" aria-expanded="false">
+            <span class="avatar" id="meAvatar">A</span>
+            <span class="me-text"><b id="meName">Admin</b><small id="meEmail"></small></span>
+            <span id="meChev"></span>
+          </button>
+        </div>
+      </aside>
+      <div class="scrim" id="scrim"></div>
+      <div class="main-col">
+        <header class="top">
+          <button class="icon-btn" id="sideToggle" title="Toggle sidebar"></button>
+          <div class="crumbs" id="crumbs"></div>
+          <span class="grow"></span>
+          <label class="search" title="Search users (Ctrl K)">
+            <span id="searchIcon"></span><input id="globalSearch" placeholder="Search users…" autocomplete="off" /><kbd>Ctrl K</kbd>
+          </label>
+          <a class="status-chip" id="payChip" href="#settings/payments" title="Payment method"></a>
+          <button class="icon-btn" id="themeToggle" title="Light / dark"></button>
+        </header>
+        <main id="view"></main>
+        <footer class="foot">
+          <span>© <span id="year"></span> KhmerDub Studio</span><span class="grow"></span>
+          <a href="../api/health" target="_blank" rel="noopener">API health</a>
+          <a href="#settings/anajakpay">Payments</a>
+          <a href="#audit">Audit log</a>
+          <a href="https://anajakpay.com" target="_blank" rel="noopener">AnajakPay</a>
+        </footer>
+      </div>
+    </div>
+
+    <div id="drawer" class="drawer hidden"><div class="drawer-panel" id="drawerBody"></div></div>
+    <div id="toast" class="toast hidden"></div>
+    <script src="admin.js?v=3"></script>
+  </body>
+</html>

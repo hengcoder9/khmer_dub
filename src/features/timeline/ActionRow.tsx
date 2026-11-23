@@ -6,9 +6,10 @@ import { LANG_NAMES } from '@shared/translate'
 import { Button } from '@/components/ui/button'
 import { DropdownContent, DropdownItem, DropdownLabel, DropdownMenu, DropdownSeparator, DropdownTrigger, Select, Toggle } from '@/components/ui/controls'
 import { mutate, useActiveEpisode, useProject } from '@/store/project'
-import { generateVoices, syncDefaultVoices, listenReadSrt, remakeLines, staleLines, mixEpisode, notify, readScreen, transcribe, translate } from '@/lib/pipeline'
+import { generateVoices, syncDefaultVoices, listenReadSrt, remakeLines, staleLines, mixEpisode, notify, transcribe, translate } from '@/lib/pipeline'
 import { toast } from 'sonner'
 import { useSettings } from '@/store/settings'
+import { useUi } from '@/store/ui'
 
 export function ActionRow() {
   const { t } = useTranslation()
@@ -130,8 +131,8 @@ export function ActionRow() {
         <Sparkles /> {t('ar.auto', 'Auto')}
       </Toggle>
 
-      <Button variant="outline" size="sm" onClick={run('ocr', () => readScreen())} disabled={!!busy || !ep.videoPath} title={t('ar.ocrHint', 'Read hard-coded subtitles from the video with Gemini vision')}>
-        {spin('ocr', <ScanText />)} {t('ar.ocr', 'Read Screen')}
+      <Button variant="outline" size="sm" onClick={() => useUi.getState().set({ dialog: 'readscreen' })} disabled={!!busy || !ep.videoPath} title={t('ar.ocrHint', 'Read hard-coded subtitles from the video with Gemini vision')}>
+        <ScanText /> {t('ar.ocr', 'Read Screen')}
       </Button>
 
       <DropdownMenu>

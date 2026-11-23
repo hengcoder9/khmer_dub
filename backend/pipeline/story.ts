@@ -4,13 +4,14 @@
 
 import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
-import type { CaptionStyle } from '../../shared/types'
+import type { CaptionStyle, Watermark } from '../../shared/types'
 import type { Provider } from '../lib/keys'
 import type { JobCtx } from '../queue'
 import { llmJson } from '../lib/llm'
 import { probeMedia, runFfmpeg } from '../lib/ffmpeg'
 import { fontsDir } from '../lib/paths'
 import { toAss, withTitles } from '../../shared/captions'
+import { withWatermarkText, wmLogoPulse, wmOverlayXY } from '../../shared/watermark'
 import { serializeSrt } from '../../shared/srt'
 import { narrationCues, sceneSeconds, storySystemPrompt, validateStory, type StoryBackground, type StoryPlan, type StoryStyle } from '../../shared/story'
 import { ffFail } from './extract'
@@ -42,6 +43,8 @@ export interface StoryPayload {
   defaultFemale: string
   captions: CaptionStyle
   lang: string
+  /** the project watermark (logo and/or text, animated) */
+  watermark?: Watermark
   outDir: string
   name: string
 }
@@ -141,7 +144,7 @@ export async function renderStory(p: StoryPayload, ctx: JobCtx): Promise<{ files
     const maxChars = p.aspect === '9:16' ? 28 : 44
     const cues = scenes.flatMap((s, i) => narrationCues(s.narration, starts[i] + 0.3, starts[i] + durs[i] - 0.45, maxChars, p.lang))
     const titles = scenes.map((s, i) => ({ text: s.title, start: starts[i] + 0.05, end: starts[i] + durs[i] - 0.15 }))
-    const ass = withTitles(toAss(cues, p.captions, w, h, p.lang), titles, p.captions.font, w, h)
+    const ass = withWatermarkText(withTitles(toAss(cues, p.captions, w, h, p.lang), titles, p.captions.font, w, h), p.watermark, w, h, total, p.captions.font)
     writeFileSync(join(work, 'story.ass'), ass, 'utf8')
 
     // 5) final: burn text, mix music under the voice
@@ -149,13 +152,24 @@ export async function renderStory(p: StoryPayload, ctx: JobCtx): Promise<{ files
     const safe = (p.name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim().slice(0, 80) || 'Claude video').replace(/[. ]+$/, '')
     let base = join(p.outDir, safe)
     for (let i = 2; existsSync(`${base}.mp4`); i++) base = join(p.outDir, `${safe} (${i})`)
-    const music = p.musicPath && existsSync(p.musicPath)
-    const args = ['-y', '-i', 'video.mp4', '-i', 'voice.wav', ...(music ? ['-stream_loop', '-1', '-i', p.musicPath!] : [])]
-    const af = music
-      ? ['-filter_complex', `[2:a]volume=0.12,afade=t=out:st=${Math.max(0, total - 1.5).toFixed(2)}:d=1.5[m];[1:a][m]amix=inputs=2:duration=first:normalize=0[a]`, '-map', '0:v', '-map', '[a]']
-      : ['-map', '0:v', '-map', '1:a']
+    const music = !!(p.musicPath && existsSync(p.musicPath))
+    const logo = p.watermark?.path && existsSync(p.watermark.path) ? p.watermark : null
+    const inputs = ['-y', '-i', 'video.mp4', '-i', 'voice.wav']
+    if (music) inputs.push('-stream_loop', '-1', '-i', p.musicPath!)
+    const logoIdx = music ? 3 : 2
+    if (logo) inputs.push('-loop', '1', '-framerate', String(FPS), '-i', logo.path)
+    // one filter graph for picture and sound (titles + captions + text watermark burned, logo overlaid, music mixed)
+    const graph = ['[0:v]subtitles=story.ass:fontsdir=fonts[vs]']
+    if (logo) {
+      const m = Math.round(Math.min(w, h) * Math.max(0, logo.margin))
+      const pulse = wmLogoPulse(logo)
+      graph.push(`[${logoIdx}:v]format=rgba,scale=${Math.max(2, Math.round((w * Math.min(0.9, Math.max(0.02, logo.size))) / 2) * 2)}:-1,colorchannelmixer=aa=${Math.min(1, Math.max(0, logo.opacity)).toFixed(3)}${pulse ? ',' + pulse : ''}[wm]`)
+      graph.push(`[vs][wm]overlay=${wmOverlayXY(logo, m)}:format=auto:shortest=1[v]`)
+    } else graph.push('[vs]null[v]')
+    graph.push(music ? `[2:a]volume=0.12,afade=t=out:st=${Math.max(0, total - 1.5).toFixed(2)}:d=1.5[m];[1:a][m]amix=inputs=2:duration=first:normalize=0[a]` : '[1:a]anull[a]')
+    writeFileSync(join(work, 'graph.txt'), graph.join(';\n'), 'utf8')
     r = await runFfmpeg(
-      [...args, ...af, '-vf', 'subtitles=story.ass:fontsdir=fonts', '-c:v', 'libx264', '-preset', 'medium', '-crf', '20', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-t', total.toFixed(2), '-movflags', '+faststart', `${base}.mp4`, '-progress', 'pipe:1', '-nostats'],
+      [...inputs, '-/filter_complex', 'graph.txt', '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-preset', 'medium', '-crf', '20', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-t', total.toFixed(2), '-movflags', '+faststart', `${base}.mp4`, '-progress', 'pipe:1', '-nostats'],
       { cwd: work, signal: ctx.signal, durationSec: total, onProgress: (pct) => ctx.progress(80 + pct * 0.19, 'Rendering the video') }
     )
     if (r.code !== 0) throw ffFail('Rendering', r.stderr)

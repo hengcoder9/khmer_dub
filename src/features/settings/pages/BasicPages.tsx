@@ -1,3 +1,5 @@
+import { AccountPanel } from '@/features/account/AccountPanel'
+import { ContactLinks } from '@/features/account/ContactLinks'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CheckCircle2, Loader2, RefreshCw, ShieldCheck } from 'lucide-react'
@@ -59,20 +61,7 @@ export function ThemePage() {
 }
 
 export function AccountPage() {
-  const { t } = useTranslation()
-  return (
-    <div className="flex max-w-xl flex-col gap-3 text-sm">
-      <div className="flex items-center gap-2 font-medium">
-        <ShieldCheck className="size-5 text-success" /> {t('account.local', 'Local mode — no account needed')}
-      </div>
-      <p className="text-muted-foreground">
-        {t(
-          'account.desc',
-          'Your projects, voices and models stay on this PC. Cloud features (Gemini, OpenRouter, Edge-TTS) use your own API keys, which are encrypted with Windows DPAPI and never written into project files or logs.'
-        )}
-      </p>
-    </div>
-  )
+  return <AccountPanel />
 }
 
 const SHORTCUTS: Array<[string, string]> = [
@@ -162,8 +151,9 @@ export function AboutPage() {
         )}
         {u?.state === 'error' && <span className="text-sm text-destructive">{u.error}</span>}
       </div>
+      <ContactLinks />
       <p className="text-xs text-muted-foreground">
-        {t('about.credits', 'Uses ffmpeg (GPL build), faster-whisper, Demucs, Resemblyzer, NLLB-200, F5-TTS, Edge-TTS, Kantumruy Pro & Hanuman fonts (OFL).')}
+        {t('about.credits', 'Uses ffmpeg (GPL build), faster-whisper, Demucs, Resemblyzer, NLLB-200, F5-TTS, Edge-TTS, Kantumruy Pro, Hanuman, Inter & JetBrains Mono fonts (OFL).')}
       </p>
     </div>
   )

@@ -4,6 +4,7 @@ import type { Aspect, CaptionStyle, Clip, Watermark } from '../../shared/types'
 import { serializeSrt, serializeVtt, type Cue } from '../../shared/srt'
 import { clipSpeed, layoutClips, mapCuesToOutput, outputDuration, outputSize, transitionDur } from '../../shared/ranges'
 import { toAss, withHook } from '../../shared/captions'
+import { hasWmText, withWatermarkText, wmLogoPulse, wmOverlayXY } from '../../shared/watermark'
 import { runFfmpeg, runFfprobe, probeMedia } from '../lib/ffmpeg'
 import { cuesForPart, partName, partRanges, planParts } from '../../shared/split'
 import { metaText, type UploadMeta } from './aicreate'
@@ -184,9 +185,11 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
   const out = `${base}.mp4`
   // a different resolution needs a re-encode (stream copy keeps the source size)
   const resized = size.w !== even(p.width || 1280) || size.h !== even(p.height || 720)
-  const wm = p.watermark && existsSync(p.watermark.path) ? p.watermark : null
+  // logo (image) and/or text watermark
+  const wm = p.watermark?.path && existsSync(p.watermark.path) ? p.watermark : null
+  const wmText = hasWmText(p.watermark) ? p.watermark! : null
   const hook = p.hook?.trim() || ''
-  let reencode = editOn || p.burn || resized || !!wm || !!hook
+  let reencode = editOn || p.burn || resized || !!wm || !!hook || !!wmText
 
   if (!reencode) {
     ctx.progress(2, 'Muxing (video copy)')
@@ -219,7 +222,19 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
   mkdirSync(join(work, 'fonts'), { recursive: true })
   if (existsSync(fontsDir)) for (const f of readdirSync(fontsDir)) if (/\.(ttf|otf)$/i.test(f)) copyFileSync(join(fontsDir, f), join(work, 'fonts', f))
   // what gets burned: the captions (if on) and the hook (if any)
-  const burnAss = hook ? withHook(p.burn ? ass : toAss([], p.captions, size.w, size.h, p.captionLang), hook, p.captions.font, size.w, size.h) : ass
+  const capAss = p.burn ? ass : toAss([], p.captions, size.w, size.h, p.captionLang)
+  const withH = hook ? withHook(capAss, hook, p.captions.font, size.w, size.h) : capAss
+  // logo + text: put the text beside (below / above) the logo instead of on top of it, unless it scrolls
+  let textOffset = 0
+  if (wm && wmText && (wm.animation ?? 'none') !== 'scroll') {
+    try {
+      const li = (await probeMedia(wm.path)).video
+      if (li?.width) textOffset = (even(size.w * Math.min(0.9, Math.max(0.02, wm.size))) * li.height) / li.width + Math.min(size.w, size.h) * 0.01
+    } catch {
+      /* unknown size: leave the text where it is */
+    }
+  }
+  const burnAss = withWatermarkText(withH, wmText ?? undefined, size.w, size.h, outDur, p.captions.font, textOffset)
   writeFileSync(join(work, 'subs.ass'), burnAss, 'utf8')
 
   const g: string[] = []
@@ -258,15 +273,17 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
   const fo = editOn ? p.edit!.fadeOut : 0
   if (fi > 0) vf.push(`fade=t=in:st=0:d=${fi}`), af.push(`afade=t=in:st=0:d=${fi}`)
   if (fo > 0) vf.push(`fade=t=out:st=${Math.max(0, outDur - fo).toFixed(3)}:d=${fo}`), af.push(`afade=t=out:st=${Math.max(0, outDur - fo).toFixed(3)}:d=${fo}`)
-  if (p.burn || hook) vf.push('subtitles=subs.ass:fontsdir=fonts')
+  if (p.burn || hook || wmText) vf.push('subtitles=subs.ass:fontsdir=fonts')
   vf.push('format=yuv420p')
   let vIn = 'vr'
   if (wm) {
     // logo: scaled to a share of the frame width, faded to its opacity, kept on screen for the whole video
     const wi = hasAudio ? 2 : 1
     const m = Math.round(Math.min(w, h) * Math.max(0, wm.margin))
-    g.push(`[${wi}:v]format=rgba,scale=${even(w * Math.min(0.9, Math.max(0.02, wm.size)))}:-1,colorchannelmixer=aa=${Math.min(1, Math.max(0, wm.opacity)).toFixed(3)}[wm]`)
-    g.push(`[vr][wm]overlay=${wmPosition(wm.position, m)}:format=auto[vw]`)
+    const pulse = wmLogoPulse(wm)
+    // -loop 1 keeps a still logo alive for the whole video, so animations can use t
+    g.push(`[${wi}:v]format=rgba,scale=${even(w * Math.min(0.9, Math.max(0.02, wm.size)))}:-1,colorchannelmixer=aa=${Math.min(1, Math.max(0, wm.opacity)).toFixed(3)}${pulse ? ',' + pulse : ''}[wm]`)
+    g.push(`[vr][wm]overlay=${wmOverlayXY(wm, m)}:format=auto:shortest=1[vw]`)
     vIn = 'vw'
   }
   g.push(`[${vIn}]${vf.join(',')}[vout]`)
@@ -277,7 +294,7 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
   ctx.progress(1, `Rendering ${n} clip${n === 1 ? '' : 's'} (${enc[1]})`)
   const inArgs = ['-y', '-i', p.videoPath]
   if (hasAudio) inArgs.push('-i', audioIn)
-  if (wm) inArgs.push('-i', wm.path)
+  if (wm) inArgs.push(...((wm.animation ?? 'none') === 'none' ? [] : ['-loop', '1', '-framerate', String(Math.round(p.fps && p.fps > 0 ? p.fps : 30))]), '-i', wm.path)
   const build = (e: string[]) => [
     ...inArgs,
     '-/filter_complex', 'graph.txt',

@@ -9,6 +9,7 @@ import { mediaUrl } from '@/lib/api'
 import { cn, formatTime, isTyping } from '@/lib/utils'
 import { clipSpeed, dubOnAt, dubSpans, effectiveClips, outputDuration, outputToSource, sourceToOutput, transitionDur } from '@shared/ranges'
 import { CaptionPreview } from './CaptionPreview'
+import { WatermarkLayer } from '@/features/project/WatermarkLayer'
 import { setBurnSubtitles } from './burn'
 
 const ASPECT: Record<string, number> = { '16:9': 16 / 9, '9:16': 9 / 16, '1:1': 1, '4:5': 4 / 5 }
@@ -397,23 +398,8 @@ export function VideoPlayer() {
               onLoadedMetadata={(e) => Number.isFinite(e.currentTarget.duration) && setDuration(e.currentTarget.duration)}
               onError={() => setUnsupported(true)}
             />
-            {wm && wmUrl && (
-              <img
-                src={wmUrl}
-                draggable={false}
-                className="pointer-events-none absolute"
-                style={{
-                  width: `${wm.size * 100}%`,
-                  opacity: wm.opacity,
-                  ...(wm.position === 'center'
-                    ? { left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }
-                    : {
-                        [wm.position[0] === 't' ? 'top' : 'bottom']: `${wm.margin * 100}%`,
-                        [wm.position[1] === 'l' ? 'left' : 'right']: `${wm.margin * 100}%`
-                      })
-                }}
-              />
-            )}
+            {/* logo and/or text watermark, animated like the export */}
+            {wm && (wmUrl || wm.text?.trim()) && <WatermarkLayer wm={wm} imageUrl={wmUrl} />}
             {dip > 0 && <div className="pointer-events-none absolute inset-0 bg-black" style={{ opacity: dip }} />}
             {cue && captions && (
               <CaptionPreview style={captions} text={cue.text} start={cue.start} end={cue.end} time={time} height={boxH} lang={captions.source === 'target' ? targetLang : 'en'} />
@@ -461,7 +447,7 @@ export function VideoPlayer() {
           className="w-full"
           aria-label="Seek"
         />
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
           <Button variant="ghost" size="icon" onClick={toggle} disabled={!src || unsupported} title={t(playing ? 'player.pause' : 'player.play', playing ? 'Pause (Space)' : 'Play (Space)')}>
             {playing ? <Pause /> : <Play />}
           </Button>

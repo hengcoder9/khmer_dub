@@ -1,6 +1,13 @@
 import { create } from 'zustand'
 import type { JobInfo, ServerEvent } from '@shared/types'
 import { api, backend } from '@/lib/api'
+import { hasAccess, useAccount } from './account'
+import { useUi } from './ui'
+
+/** AI + export jobs need a signed-in account with an active plan or trial. */
+export const PAID_JOBS = new Set(['separate', 'transcribe', 'diarize', 'translate', 'tts', 'export', 'polish', 'genvideo', 'story', 'ocr', 'ocrarea'])
+
+export class AccessError extends Error {}
 
 interface JobsState {
   jobs: Record<string, JobInfo>
@@ -73,6 +80,14 @@ export class JobError extends Error {
 
 /** Queue a backend job and resolve with its result when it finishes (rejects on error/cancel). */
 export async function runJob<T>(type: string, payload: unknown, episodeId?: string): Promise<T> {
+  if (PAID_JOBS.has(type) && !hasAccess()) {
+    useUi.getState().set({ dialog: 'account' })
+    throw new AccessError(
+      useAccount.getState().signedIn
+        ? 'Your free trial or plan has ended — choose a plan to keep using the AI tools.'
+        : 'Sign in (free 3-day trial) to use the AI tools.'
+    )
+  }
   await connectEvents()
   const job = await api<JobInfo>('/jobs', { method: 'POST', body: JSON.stringify({ type, payload, episodeId }) })
   onJob(job)

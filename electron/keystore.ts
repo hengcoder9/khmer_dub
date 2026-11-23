@@ -11,7 +11,13 @@ interface Stored {
   provider: KeyEntry['provider']
   label?: string
   enc: string // base64 ciphertext
+  /** id of the copy saved on the account server */
+  sid?: number
 }
+
+/** keys the admin shares with active accounts — memory only, never written to disk */
+let shared: Array<{ id: number; provider: KeyEntry['provider']; label?: string; key: string }> = []
+export const setSharedKeys = (list: typeof shared) => (shared = list)
 
 const file = () => join(app.getPath('userData'), 'keys.dat')
 
@@ -41,6 +47,7 @@ export function listKeys(): KeyEntry[] {
     const k = decrypt(s)
     if (k) out.push({ id: s.id, provider: s.provider, label: s.label, masked: mask(k) })
   }
+  for (const k of shared) out.push({ id: `s${k.id}`, provider: k.provider, label: k.label || undefined, masked: mask(k.key), shared: true })
   return out
 }
 
@@ -49,6 +56,7 @@ export function plainKeys(): Array<{ id: string; provider: KeyEntry['provider'];
   return load()
     .map((s) => ({ id: s.id, provider: s.provider, key: decrypt(s) ?? '' }))
     .filter((k) => k.key)
+    .concat(shared.map((k) => ({ id: `s${k.id}`, provider: k.provider, key: k.key })))
 }
 
 export function addKey(provider: KeyEntry['provider'], key: string, label?: string): KeyEntry[] {
@@ -64,6 +72,31 @@ export function addKey(provider: KeyEntry['provider'], key: string, label?: stri
 }
 
 export function removeKey(id: string): KeyEntry[] {
+  if (id.startsWith('s')) return listKeys() // shared keys belong to the admin
   save(load().filter((s) => s.id !== id))
   return listKeys()
+}
+
+/** Local keys with their server ids, for syncing. */
+export function localKeys(): Array<{ id: string; provider: KeyEntry['provider']; label?: string; key: string; sid?: number }> {
+  return load()
+    .map((s) => ({ id: s.id, provider: s.provider, label: s.label, key: decrypt(s) ?? '', sid: s.sid }))
+    .filter((k) => k.key)
+}
+
+export function setServerId(id: string, sid: number): void {
+  save(load().map((s) => (s.id === id ? { ...s, sid } : s)))
+}
+
+/** Server id of a local key (so removing it here removes the saved copy too). */
+export const serverIdOf = (id: string): number | undefined => load().find((s) => s.id === id)?.sid
+
+/** Add a key that came from the server (already saved there). */
+export function addFromServer(provider: KeyEntry['provider'], key: string, label: string, sid: number): void {
+  if (!safeStorage.isEncryptionAvailable()) return
+  const list = load()
+  const hit = list.find((s) => s.provider === provider && decrypt(s) === key)
+  if (hit) hit.sid = sid
+  else list.push({ id: randomBytes(6).toString('hex'), provider, label: label || undefined, enc: safeStorage.encryptString(key).toString('base64'), sid })
+  save(list)
 }

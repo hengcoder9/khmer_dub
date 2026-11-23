@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Toaster } from 'sonner'
-import { useSettings } from '@/store/settings'
+import { gatewayPayload, useSettings } from '@/store/settings'
 import { useProject, undo, redo, saveNow } from '@/store/project'
 import { useUi } from '@/store/ui'
 import { connectEvents } from '@/store/jobs'
@@ -15,6 +15,11 @@ import { NewProjectDialog } from '@/features/project/NewProjectDialog'
 import { UpdateModal } from '@/features/update/UpdateModal'
 import { LinkDialog, SourceDialog } from '@/features/project/ImportTools'
 import { WatermarkDialog } from '@/features/project/WatermarkDialog'
+import { ReadScreenDialog } from '@/features/project/ReadScreenDialog'
+import { JobDock } from '@/components/JobDock'
+import { GatewayDialog } from '@/features/gateway/GatewayDialog'
+import { AccountDialog } from '@/features/account/AccountDialog'
+import { startAccountSync, useAccount } from '@/store/account'
 
 function useApplyTheme() {
   const theme = useSettings((s) => s.theme)
@@ -26,9 +31,17 @@ function useApplyTheme() {
     return () => mq.removeEventListener('change', on)
   }, [])
   const dark = theme === 'dark' || (theme === 'system' && systemDark)
+  const accent = useSettings((s) => s.accent)
+  const uiScale = useSettings((s) => s.uiScale)
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark)
   }, [dark])
+  useEffect(() => {
+    document.documentElement.dataset.accent = accent
+  }, [accent])
+  useEffect(() => {
+    window.api.setZoom?.(uiScale)
+  }, [uiScale])
   return dark
 }
 
@@ -47,6 +60,13 @@ export function App() {
   // backend events + engine config on start
   useEffect(() => {
     connectEvents().catch(() => {})
+    startAccountSync()
+    // first launch while signed out: show sign-in / free trial once
+    const unsub = useAccount.subscribe((a) => {
+      if (!a.loaded) return
+      unsub()
+      if (!a.signedIn) setUi({ dialog: 'account' })
+    })
     const s = useSettings.getState()
     post('/engines/config', {
       gpuLanes: s.gpuLanes,
@@ -54,6 +74,8 @@ export function App() {
       clone: { engine: s.cloneEngine, model: s.cloneModel, ckptFile: s.cloneCkpt || undefined, vocabFile: s.cloneVocab || undefined }
     }).catch(() => {})
     post('/llm/config', { codecraftBaseUrl: s.codecraftBaseUrl, claudeWorkspaceId: s.claudeWorkspaceId }).catch(() => {})
+    post('/gateway/mode', { mode: s.routeMode }).catch(() => {})
+    if (s.gatewayEnabled) post('/gateway/config', gatewayPayload()).catch(() => {})
     const flush = () => void saveNow()
     window.addEventListener('beforeunload', flush)
     return () => window.removeEventListener('beforeunload', flush)
@@ -93,8 +115,12 @@ export function App() {
       {dialog === 'link' && <LinkDialog onClose={() => setUi({ dialog: null })} />}
       {dialog === 'source' && <SourceDialog onClose={() => setUi({ dialog: null })} />}
       {dialog === 'watermark' && <WatermarkDialog onClose={() => setUi({ dialog: null })} />}
+      {dialog === 'readscreen' && <ReadScreenDialog onClose={() => setUi({ dialog: null })} />}
+      {dialog === 'gateway' && <GatewayDialog onClose={() => setUi({ dialog: null })} />}
+      {dialog === 'account' && <AccountDialog onClose={() => setUi({ dialog: null })} />}
       <UpdateModal />
-      <Toaster theme={dark ? 'dark' : 'light'} position="bottom-right" richColors closeButton />
+      {hasProject && <JobDock />}
+      <Toaster theme={dark ? 'dark' : 'light'} position="top-right" offset={64} richColors closeButton />
     </>
   )
 }

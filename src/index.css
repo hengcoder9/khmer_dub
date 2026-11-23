@@ -1,55 +1,98 @@
+/* Bundled OFL fonts (work offline): Inter for Latin UI, Kantumruy Pro for Khmer, JetBrains Mono for numbers/code */
+@font-face {
+  font-family: 'Inter';
+  src: url('./assets/fonts/Inter.ttf') format('truetype');
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Kantumruy Pro';
+  src: url('./assets/fonts/KantumruyPro.ttf') format('truetype');
+  font-weight: 100 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Hanuman';
+  src: url('./assets/fonts/Hanuman.ttf') format('truetype');
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('./assets/fonts/JetBrainsMono.ttf') format('truetype');
+  font-weight: 100 800;
+  font-display: swap;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 220 20% 97%;
-    --foreground: 222 30% 12%;
+    --background: 228 33% 97%;
+    --foreground: 226 32% 14%;
     --card: 0 0% 100%;
-    --card-foreground: 222 30% 12%;
+    --card-foreground: 226 32% 14%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 30% 12%;
-    --primary: 172 72% 34%;
+    --popover-foreground: 226 32% 14%;
+    --primary: 252 83% 60%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 16% 92%;
-    --secondary-foreground: 222 30% 18%;
-    --muted: 220 16% 94%;
-    --muted-foreground: 220 9% 44%;
-    --accent: 220 16% 90%;
-    --accent-foreground: 222 30% 12%;
-    --destructive: 0 72% 50%;
+    --primary-2: 214 92% 56%;
+    --secondary: 228 24% 93%;
+    --secondary-foreground: 226 30% 20%;
+    --muted: 228 26% 95%;
+    --muted-foreground: 226 12% 46%;
+    --accent: 228 30% 94%;
+    --accent-foreground: 226 32% 14%;
+    --destructive: 352 78% 54%;
     --destructive-foreground: 0 0% 100%;
-    --success: 142 64% 38%;
-    --warning: 34 92% 46%;
-    --border: 220 14% 86%;
-    --input: 220 14% 84%;
-    --ring: 172 72% 34%;
-    --radius: 0.5rem;
+    --success: 152 62% 38%;
+    --warning: 32 94% 48%;
+    --border: 228 22% 89%;
+    --input: 228 20% 86%;
+    --ring: 252 83% 60%;
+    --radius: 0.75rem;
+    --shadow-color: 228 40% 40%;
   }
   .dark {
-    --background: 222 18% 7%;
-    --foreground: 220 14% 92%;
-    --card: 222 16% 10%;
-    --card-foreground: 220 14% 92%;
-    --popover: 222 16% 11%;
-    --popover-foreground: 220 14% 92%;
-    --primary: 170 64% 44%;
-    --primary-foreground: 222 30% 8%;
-    --secondary: 222 13% 17%;
-    --secondary-foreground: 220 14% 90%;
-    --muted: 222 13% 14%;
-    --muted-foreground: 220 9% 60%;
-    --accent: 222 13% 19%;
-    --accent-foreground: 220 14% 94%;
-    --destructive: 0 66% 52%;
+    --background: 228 30% 6%;
+    --foreground: 226 24% 93%;
+    --card: 228 26% 9%;
+    --card-foreground: 226 24% 93%;
+    --popover: 228 26% 10%;
+    --popover-foreground: 226 24% 93%;
+    --primary: 252 90% 68%;
+    --primary-foreground: 0 0% 100%;
+    --primary-2: 210 95% 62%;
+    --secondary: 228 20% 15%;
+    --secondary-foreground: 226 20% 90%;
+    --muted: 228 22% 12%;
+    --muted-foreground: 226 12% 62%;
+    --accent: 228 20% 16%;
+    --accent-foreground: 226 24% 95%;
+    --destructive: 352 72% 58%;
     --destructive-foreground: 0 0% 100%;
-    --success: 142 56% 46%;
-    --warning: 36 92% 54%;
-    --border: 222 12% 19%;
-    --input: 222 12% 22%;
-    --ring: 170 64% 44%;
+    --success: 152 56% 48%;
+    --warning: 36 92% 56%;
+    --border: 228 18% 17%;
+    --input: 228 18% 21%;
+    --ring: 252 90% 68%;
+    --shadow-color: 228 60% 2%;
   }
+
+  /* accent palettes (studio colour dots) — primary + its gradient partner */
+  [data-accent='teal'] { --primary: 174 74% 36%; --primary-2: 196 88% 46%; --ring: 174 74% 36%; }
+  .dark[data-accent='teal'] { --primary: 172 66% 46%; --primary-2: 194 86% 56%; --ring: 172 66% 46%; --primary-foreground: 228 30% 8%; }
+  [data-accent='blue'] { --primary: 218 90% 54%; --primary-2: 196 92% 50%; --ring: 218 90% 54%; }
+  .dark[data-accent='blue'] { --primary: 214 95% 64%; --primary-2: 192 92% 58%; --ring: 214 95% 64%; }
+  [data-accent='orange'] { --primary: 22 94% 52%; --primary-2: 40 96% 52%; --ring: 22 94% 52%; }
+  .dark[data-accent='orange'] { --primary: 24 96% 58%; --primary-2: 42 96% 58%; --ring: 24 96% 58%; --primary-foreground: 228 30% 8%; }
+  [data-accent='rose'] { --primary: 340 82% 54%; --primary-2: 290 70% 56%; --ring: 340 82% 54%; }
+  .dark[data-accent='rose'] { --primary: 340 86% 64%; --primary-2: 290 76% 66%; --ring: 340 86% 64%; }
+  [data-accent='emerald'] { --primary: 152 66% 36%; --primary-2: 84 70% 42%; --ring: 152 66% 36%; }
+  .dark[data-accent='emerald'] { --primary: 150 60% 46%; --primary-2: 84 66% 50%; --ring: 150 60% 46%; --primary-foreground: 228 30% 8%; }
+
   * {
     @apply border-border;
   }
@@ -61,10 +104,28 @@
   body {
     @apply bg-background text-foreground antialiased select-none;
     font-size: 14px;
+    /* Inter: tabular figures, straight-sided digits, open 4/6/9 */
+    font-feature-settings: 'cv05', 'cv08', 'ss01', 'tnum' 0;
+    letter-spacing: -0.005em;
+    background-image:
+      radial-gradient(1200px 500px at 0% -10%, hsl(var(--primary) / 0.07), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, hsl(var(--primary-2) / 0.06), transparent 60%);
   }
   input,
   textarea {
     @apply select-text;
+  }
+  /* Khmer script needs taller lines than Latin */
+  :lang(km) body,
+  [lang='km'] {
+    line-height: 1.6;
+    letter-spacing: 0;
+  }
+  .font-mono,
+  code,
+  pre {
+    font-feature-settings: 'zero' 1, 'calt' 1;
+    letter-spacing: 0;
   }
   ::-webkit-scrollbar {
     width: 10px;
@@ -75,11 +136,66 @@
     border: 2px solid transparent;
     background-clip: content-box;
   }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.4);
+  }
   input[type='range'] {
     @apply h-1 cursor-pointer appearance-none rounded-full bg-secondary;
     accent-color: hsl(var(--primary));
   }
   input[type='range']::-webkit-slider-thumb {
-    @apply size-3 appearance-none rounded-full bg-primary;
+    @apply size-3.5 appearance-none rounded-full bg-primary;
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.2);
   }
+}
+
+@layer components {
+  /* raised studio panel */
+  .studio-card {
+    @apply rounded-xl border bg-card;
+    box-shadow: 0 1px 2px hsl(var(--shadow-color) / 0.06), 0 4px 16px -6px hsl(var(--shadow-color) / 0.1);
+  }
+  .studio-glass {
+    @apply border bg-card/80 backdrop-blur-xl;
+    box-shadow: 0 12px 40px -12px hsl(var(--shadow-color) / 0.35);
+  }
+  .bg-brand {
+    background-image: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-2)));
+  }
+  .text-brand {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--primary-2)));
+  }
+  /* small uppercase section label, e.g. "LIVE PARALLEL WAVE CONVEYOR" */
+  .studio-label {
+    @apply text-[10.5px] font-semibold uppercase tracking-[0.1em] text-muted-foreground;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium;
+  }
+}
+
+@layer utilities {
+  .animate-shimmer {
+    background-size: 200% 100%;
+    animation: kd-shimmer 1.6s linear infinite;
+  }
+  .animate-flow {
+    animation: kd-flow 0.9s linear infinite;
+  }
+  .animate-scan {
+    animation: kd-scan 1.8s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes kd-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+@keyframes kd-flow {
+  to { stroke-dashoffset: -22; }
+}
+@keyframes kd-scan {
+  from { left: 4%; }
+  to { left: 92%; }
 }

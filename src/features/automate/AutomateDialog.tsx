@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { CheckCircle2, Circle, Film, Loader2, Pause, Play, Square, XCircle } from 'lucide-react'
+import { CheckCircle2, Circle, Film, Gauge, Loader2, Pause, Play, Settings2, Square, XCircle } from 'lucide-react'
+import { BatchCockpit, type StepId, type StepState } from './BatchCockpit'
 import type { MediaInfo, SttEngine, Translator } from '@shared/types'
 import { episodeLabel, newEpisode } from '@shared/defaults'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
@@ -27,8 +28,6 @@ import {
   VIDEO_FILTERS
 } from '@/lib/pipeline'
 
-type StepId = 'separate' | 'transcribe' | 'diarize' | 'translate' | 'cast' | 'tts' | 'export'
-type StepState = 'wait' | 'run' | 'done' | 'skip' | 'error'
 
 interface Preset {
   separate: boolean
@@ -64,6 +63,12 @@ export function AutomateDialog({ onClose }: { onClose: () => void }) {
   const [running, setRunning] = useState(false)
   const [paused, setPaused] = useState(false)
   const ctl = useRef({ paused: false, stop: false })
+  const [view, setView] = useState<'setup' | 'cockpit'>('setup')
+  const [startedAt, setStartedAt] = useState<number | null>(null)
+  const [finishedAt, setFinishedAt] = useState<Record<string, number>>({})
+  const [order, setOrder] = useState<string[]>([])
+  const parallel = useSettings((s) => s.batchParallel)
+  const exportDir = (e: { label: string }) => `${dir}\\exports\\${e.label}`
 
   const steps: Array<[StepId, string, boolean]> = [
     ['separate', t('auto.separate', 'Remove BGM'), preset.separate],
@@ -105,6 +110,11 @@ export function AutomateDialog({ onClose }: { onClose: () => void }) {
     setRunning(true)
     setPaused(false)
     const order = project.episodes.filter((e) => picked.has(e.id))
+    setOrder(order.map((e) => e.id))
+    setStatus({})
+    setFinishedAt({})
+    setStartedAt(Date.now())
+    setView('cockpit')
     const log = (line: string) => appendLog('automate.log', [`[${project.name}] ${line}`])
     log(`start: ${order.map((e) => e.label).join(', ')} preset=${JSON.stringify(preset)}`)
     mutate((p) => ({ ...p, settings: { ...p.settings, sttEngine: preset.engine, translator: preset.translator, burnSubtitles: preset.burn } }), { undo: false })
@@ -200,6 +210,7 @@ export function AutomateDialog({ onClose }: { onClose: () => void }) {
           mark(id, 'done')
           log(`${e.label} ${id} done`)
         }
+        setFinishedAt((x) => ({ ...x, [e.id]: Date.now() }))
       } catch (err) {
         const msg = firstLine(err)
         setStatus((x) => {
@@ -221,7 +232,8 @@ export function AutomateDialog({ onClose }: { onClose: () => void }) {
         await runEpisode(order[i], i === 0)
       }
     }
-    await Promise.all([lane(), lane()])
+    const lanes = Math.max(1, Math.min(4, useSettings.getState().batchParallel || 2))
+    await Promise.all(Array.from({ length: lanes }, lane))
     log('finished')
     setRunning(false)
     toast.success(t('auto.finished', 'Automate finished — log saved to automate.log'))
@@ -247,13 +259,80 @@ export function AutomateDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Dialog open onOpenChange={(v) => !v && !running && onClose()}>
-      <DialogContent className="flex max-h-[90vh] w-[860px] flex-col p-6">
-        <DialogTitle>{t('auto.title', 'Automate — batch dub episodes')}</DialogTitle>
-        <DialogDescription className="mb-3 text-sm text-muted-foreground">
-          {t('auto.desc', 'Runs every step for each picked episode. The cast is shared, so the same actor keeps the same voice across episodes.')}
-        </DialogDescription>
+      <DialogContent className={cn('flex max-h-[92vh] flex-col p-5 transition-[width]', view === 'cockpit' ? 'w-[min(1180px,96vw)]' : 'w-[900px]')}>
+        <div className="mb-3 flex items-start gap-3 pr-8">
+          <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand text-primary-foreground shadow-md shadow-primary/30">
+            <Gauge className="size-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <DialogTitle>{t('auto.title', 'Automate — batch dub episodes')}</DialogTitle>
+              {startedAt && (
+                <span className="chip font-mono text-[10px]">
+                  {Object.keys(finishedAt).length}/{order.length} · {running ? (paused ? t('auto.pausedChip', 'Paused') : t('auto.runningChip', 'Running')) : t('auto.doneChip', 'Done')}
+                </span>
+              )}
+            </div>
+            <DialogDescription className="text-xs text-muted-foreground">
+              {t('auto.desc', 'Runs every step for each picked episode. The cast is shared, so the same actor keeps the same voice across episodes.')}
+            </DialogDescription>
+          </div>
+          <div className="flex rounded-lg border bg-muted p-0.5">
+            {(
+              [
+                ['setup', Settings2, t('auto.viewSetup', 'Setup')],
+                ['cockpit', Gauge, t('auto.viewCockpit', 'Live Cockpit')]
+              ] as const
+            ).map(([id, Icon, label]) => (
+              <button
+                key={id}
+                onClick={() => setView(id)}
+                className={cn('flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium', view === id ? 'bg-brand text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}
+              >
+                <Icon className="size-3.5" /> {label}
+                {id === 'cockpit' && running && <span className="size-1.5 animate-pulse rounded-full bg-current" />}
+              </button>
+            ))}
+          </div>
+        </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        {view === 'setup' && (
+          <div className="mb-3 grid grid-cols-4 gap-2">
+            {(
+              [
+                ['01', 'bg-blue-500', t('auto.sumAi', 'AI & subtitles'), preset.engine === 'gemini-direct' ? 'Gemini · Direct' : preset.engine === 'whisper' ? 'Whisper + translate' : preset.engine === 'gemini-cast' ? 'Gemini + cast' : 'Offline Whisper'],
+                ['02', 'bg-rose-500', t('auto.sumLang', 'Language & cast'), `${preset.translator}${preset.autoCast ? ' · auto cast' : ''}${preset.diarize ? ' · speakers' : ''}`],
+                ['03', 'bg-emerald-500', t('auto.sumAudio', 'Audio & export'), `${preset.separate ? 'Demucs BGM · ' : ''}${preset.export ? 'MP4 + SRT' : 'no export'}${preset.burn ? ' + CC' : ''}`],
+                ['04', 'bg-amber-500', t('auto.sumPace', 'Batch pacing'), `${picked.size} ${t('auto.eps', 'episodes')} · ×${parallel} ${t('auto.parallel', 'parallel')}`]
+              ] as const
+            ).map(([n, dot, k, v]) => (
+              <div key={n} className="rounded-xl border bg-card p-2.5">
+                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                  <span className={cn('size-1.5 rounded-full', dot)} /> {n} · {k}
+                </div>
+                <div className="mt-0.5 truncate text-sm font-semibold">{v}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {view === 'cockpit' && (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <BatchCockpit
+              episodes={(order.length ? order : [...picked]).map((id) => project.episodes.find((e) => e.id === id)).filter((e): e is NonNullable<typeof e> => !!e)}
+              steps={steps}
+              status={status}
+              jobs={jobs}
+              startedAt={startedAt}
+              finishedAt={finishedAt}
+              running={running}
+              parallel={parallel}
+              exportDir={exportDir}
+            />
+          </div>
+        )}
+
+        <div className={cn('grid grid-cols-2 gap-4', view !== 'setup' && 'hidden')}>
           <div className="flex flex-col gap-2 rounded-md border p-3">
             <div className="text-sm font-medium">{t('auto.preset', 'Preset')}</div>
             <Checkbox checked={preset.separate} onChange={(v) => setPreset({ ...preset, separate: v })} label={t('auto.pSeparate', 'Remove BGM first (Demucs)')} />
@@ -292,6 +371,16 @@ export function AutomateDialog({ onClose }: { onClose: () => void }) {
             <Checkbox checked={preset.export} onChange={(v) => setPreset({ ...preset, export: v })} label={t('auto.pExport', 'Mix and export MP4 + SRT')} />
             <Checkbox checked={preset.burn} onChange={(v) => setPreset({ ...preset, burn: v })} label={t('auto.pBurn', 'Burn styled captions')} />
             <Checkbox checked={preset.applyEdit} onChange={(v) => setPreset({ ...preset, applyEdit: v })} label={t('auto.pEdit', 'Apply AI-editor cuts')} />
+            <label className="flex items-center gap-2 text-sm">
+              {t('auto.pParallel', 'Episodes at the same time')}
+              <Select
+                className="w-24"
+                value={String(parallel)}
+                onChange={(v) => useSettings.getState().set({ batchParallel: Number(v) })}
+                options={[1, 2, 3, 4].map((n) => ({ value: String(n), label: `×${n}` }))}
+                disabled={running}
+              />
+            </label>
           </div>
           <div className="flex min-h-0 flex-col gap-2 rounded-md border p-3">
             <div className="flex items-center justify-between">
@@ -317,6 +406,12 @@ export function AutomateDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="mt-4 flex items-center justify-end gap-2">
+          {view === 'cockpit' && running && (
+            <span className="mr-2 flex items-center gap-1.5 text-xs text-primary">
+              <Loader2 className="size-3.5 animate-spin" />
+              {t('auto.batchRunning', 'Batch running: {{d}}/{{n}} completed', { d: Object.keys(finishedAt).length, n: order.length })}
+            </span>
+          )}
           <span className="mr-auto text-xs text-muted-foreground">{t('auto.logHint', 'Log: %APPDATA%/KhmerDub Studio/logs/automate.log')}</span>
           {running ? (
             <>

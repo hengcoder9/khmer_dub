@@ -16,6 +16,8 @@ export interface LlmOptions {
   json?: boolean
   temperature?: number
   signal?: AbortSignal
+  /** telemetry tag: "app" (default) or "gateway" */
+  source?: string
 }
 
 const GEMINI = 'https://generativelanguage.googleapis.com/v1beta'
@@ -222,16 +224,20 @@ export async function llmText(o: LlmOptions): Promise<string> {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const { key, waitMs } = keyPool.next(o.provider)
     if (waitMs > 0) await sleep(Math.min(waitMs, 65_000), o.signal)
+    const end = keyPool.begin(key.id, o.provider, o.model, o.source)
     try {
-      return o.provider === 'gemini'
+      const out = await (o.provider === 'gemini'
         ? await callGemini(key.key, o)
         : o.provider === 'claude'
           ? await callClaude(key.key, o)
           : o.provider === 'codecraft'
             ? await callOpenAICompat(codecraftUrl(), 'CodeCraft', key.key, o)
-            : await callOpenAICompat(OPENROUTER, 'OpenRouter', key.key, o)
+            : callOpenAICompat(OPENROUTER, 'OpenRouter', key.key, o))
+      end(true)
+      return out
     } catch (e) {
       const err = e as Error
+      end(false, err.message)
       if (err.name === 'AbortError' && o.signal?.aborted) throw err
       if (err instanceof FatalLlmError) throw err
       lastErr = err

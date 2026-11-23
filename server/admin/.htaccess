@@ -1,0 +1,6 @@
+# Always revalidate the console files so a browser never mixes a new page with an old script or stylesheet.
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html|css|js)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>

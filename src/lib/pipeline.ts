@@ -856,6 +856,84 @@ export async function readScreen(epId?: string) {
   toast.success(`Read ${r.segments.length} subtitle lines from the screen`)
 }
 
+export interface ScreenLine {
+  start: number
+  end: number
+  original: string
+  target: string
+  thumb?: string
+}
+
+const readerChoice = () => ({
+  geminiModel: S().geminiModel,
+  provider: S().screenReader,
+  model: S().screenReader === 'codecraft' ? S().codecraftModel : S().geminiModel
+})
+
+/** Ask the AI where the burned-in subtitles sit; returns fractions of the frame height, or null if none were seen. */
+export async function findScreenArea(epId?: string) {
+  const e = ep(epId)
+  needVideo(e)
+  const r = await runJob<{ area: { top: number; bottom: number } | null }>('ocrarea', { videoPath: e.videoPath, epDir: epDir(e), durationSec: e.durationSec, ...readerChoice() }, e.id)
+  return r.area
+}
+
+/** Read the chosen band, then translate the lines to the project's target language (original kept if translation fails). */
+export async function readScreenArea(region: { top: number; bottom: number }, epId?: string, onStage?: (s: 'read' | 'translate') => void) {
+  const e = ep(epId)
+  needVideo(e)
+  onStage?.('read')
+  const r = await runJob<{ segments: Array<RawSeg & { thumb?: string }> }>(
+    'ocr',
+    { videoPath: e.videoPath, epDir: epDir(e), durationSec: e.durationSec, interval: S().ocrInterval, cropTop: region.top, region, thumbs: true, ...readerChoice() },
+    e.id
+  )
+  const lines: ScreenLine[] = r.segments.map((s) => ({ start: s.start, end: s.end, original: s.text, target: '', thumb: s.thumb }))
+  if (!lines.length) return { lines, translateError: undefined as string | undefined }
+  const p = P().project!
+  let translateError: string | undefined
+  if (p.settings.targetLang === srcLang(p.settings)) {
+    lines.forEach((l) => (l.target = l.original))
+  } else {
+    onStage?.('translate')
+    try {
+      const t = await runJob<{ results: TResult[] }>(
+        'translate',
+        {
+          items: lines.map((l, i) => ({ id: String(i), text: l.original })),
+          provider: p.settings.translator,
+          targetLang: p.settings.targetLang,
+          sourceLang: srcLang(p.settings),
+          glossary: p.glossary,
+          context: [],
+          geminiModel: S().geminiModel,
+          openrouterModel: S().openrouterModel,
+          codecraftModel: S().codecraftModel,
+          claudeModel: S().claudeModel
+        },
+        e.id
+      )
+      const m = new Map(t.results.map((x) => [x.id, x.khmer]))
+      lines.forEach((l, i) => (l.target = m.get(String(i)) ?? ''))
+    } catch (err) {
+      translateError = (err as Error).message
+    }
+  }
+  return { lines, translateError }
+}
+
+/** Put the reviewed lines into the episode as its dubbing lines. */
+export function applyScreenLines(lines: ScreenLine[], epId?: string) {
+  const e = ep(epId)
+  const keepOrig = lines.every((l) => l.target.trim())
+  updateEpisode(e.id, (x) => ({
+    ...x,
+    segments: lines.map((l) => newSegment(l.start, l.end, l.original, l.target)),
+    status: keepOrig ? 'translated' : 'transcribed'
+  }))
+  toast.success(`${lines.length} lines from the screen are ready`)
+}
+
 // ───────── Listen + Read → SRT ─────────
 
 const safeName = (s: string) => s.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim().replace(/[. ]+$/, '') || 'subtitles'
@@ -1200,6 +1278,7 @@ export async function renderStoryVideo(o: {
     defaultFemale: S().defaultFemale,
     captions: p?.settings.captions ?? DEFAULT_CAPTIONS,
     lang: p?.settings.targetLang ?? 'km',
+    watermark: p?.settings.watermark,
     outDir: `${dir}\\generated`,
     name: `Claude ${o.plan.title}`.slice(0, 80)
   })

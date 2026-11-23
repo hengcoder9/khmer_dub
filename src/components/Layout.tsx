@@ -17,43 +17,49 @@ export function Layout() {
   const tab = useUi((s) => s.centerTab)
   const set = useUi((s) => s.set)
   const big = useSettings((s) => s.bigPlayer)
+  const playerWidth = useSettings((s) => s.playerWidth)
 
   return (
     <div className="flex h-full flex-col">
       <TopBar />
 
-      <div className="flex min-h-0 flex-1">
-        <aside className={cn('flex shrink-0 flex-col gap-3 overflow-y-auto border-r bg-card p-3 transition-[width]', big ? 'w-1/2' : 'w-[440px]')}>
+      <div className="flex min-h-0 flex-1 gap-2 p-2 pb-0">
+        <aside
+          className={cn('studio-card flex shrink-0 flex-col gap-3 overflow-y-auto p-3 transition-[width]', big && 'w-1/2')}
+          style={big ? undefined : { width: playerWidth }}
+        >
           <VideoPlayer />
           <ToolButtons />
         </aside>
 
-        <main className="flex min-w-0 flex-1 flex-col">
-          <div className="flex h-9 shrink-0 items-end gap-1 border-b bg-card px-2">
-            {(
-              [
-                ['dub', Rows3, t('tabs.dub', 'Dubbing lines')],
-                ['editor', Clapperboard, t('tabs.editor', 'AI Video Editor')]
-              ] as const
-            ).map(([id, Icon, label]) => (
-              <button
-                key={id}
-                onClick={() => set({ centerTab: id })}
-                className={cn(
-                  'flex h-8 items-center gap-1.5 rounded-t-md border-x border-t px-3 text-sm',
-                  tab === id ? 'bg-background font-medium text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <Icon className="size-4" />
-                {label}
-              </button>
-            ))}
+        <main className="studio-card flex min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="flex h-11 shrink-0 items-center gap-2 border-b px-2">
+            <div className="flex rounded-lg bg-muted p-0.5">
+              {(
+                [
+                  ['dub', Rows3, t('tabs.dub', 'Dubbing lines')],
+                  ['editor', Clapperboard, t('tabs.editor', 'AI Video Editor')]
+                ] as const
+              ).map(([id, Icon, label]) => (
+                <button
+                  key={id}
+                  onClick={() => set({ centerTab: id })}
+                  className={cn(
+                    'flex h-8 items-center gap-1.5 rounded-md px-3 text-sm transition-colors',
+                    tab === id ? 'bg-card font-medium text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <Icon className={cn('size-4', tab === id && 'text-primary')} />
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="min-h-0 flex-1">{tab === 'dub' ? <SegmentGrid /> : <EditorPanel />}</div>
         </main>
       </div>
 
-      <section className="flex h-[280px] shrink-0 flex-col border-t bg-card">
+      <section className="studio-card m-2 mb-0 flex h-[280px] shrink-0 flex-col overflow-hidden">
         <Timeline />
         <ActionRow />
       </section>

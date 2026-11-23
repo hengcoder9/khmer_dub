@@ -1,0 +1,5 @@
+# Keep secrets and code out of reach; only api/, admin/ and install.php are public.
+Options -Indexes
+<FilesMatch "^(config\.php|config\.sample\.php|README\.md)$">
+  Require all denied
+</FilesMatch>

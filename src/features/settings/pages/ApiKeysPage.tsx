@@ -45,7 +45,7 @@ function KeyList({ provider, keys, setKeys }: { provider: KeyEntry['provider']; 
         const cur = useSettings.getState().geminiModel
         // Google still lists retired 1.x/2.x models, but they 404 for new keys — never auto-pick those
         const usable = models.filter((m) => !/^gemini-[12]\./.test(m))
-        if (!models.includes(cur) || /^gemini-[12]\./.test(cur)) {
+        if (!models.includes(cur) || /^gemini-[12]\./.test(cur) || /(tts|image|live|embed|audio)/i.test(cur)) {
           const pick =
             usable.find((m) => /flash/.test(m) && !/lite|image|tts|live|embedding|preview|exp/.test(m)) ??
             usable.find((m) => /flash/.test(m) && !/image|tts|live|embedding/.test(m)) ??
@@ -71,11 +71,18 @@ function KeyList({ provider, keys, setKeys }: { provider: KeyEntry['provider']; 
           <div key={k.id} className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm">
             <span className="font-mono">{k.masked}</span>
             {k.label && <span className="text-xs text-muted-foreground">{k.label}</span>}
+            {k.shared && (
+              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary" title={t('keys.sharedHint', 'Provided by the admin with your plan — you can use it but not see or remove it')}>
+                {t('keys.shared', 'Shared')}
+              </span>
+            )}
             <div className="flex-1" />
             {r && (r.ok ? <CheckCircle2 className="size-4 text-success" /> : <span className="flex items-center gap-1 text-xs text-destructive" title={r.detail}><XCircle className="size-4" /> {r.detail.slice(0, 40)}</span>)}
-            <button className="rounded p-1 hover:bg-accent" onClick={async () => setKeys(await window.api.keys.remove(k.id))}>
-              <Trash2 className="size-3.5" />
-            </button>
+            {!k.shared && (
+              <button className="rounded p-1 hover:bg-accent" onClick={async () => setKeys(await window.api.keys.remove(k.id))}>
+                <Trash2 className="size-3.5" />
+              </button>
+            )}
           </div>
         )
       })}
@@ -93,6 +100,9 @@ function KeyList({ provider, keys, setKeys }: { provider: KeyEntry['provider']; 
   )
 }
 
+/** shown even before Test has loaded the key's own list */
+const GEMINI_SUGGESTED = ['gemini-3.8-flash', 'gemini-3.8-flash-lite', 'gemini-3.8-pro']
+
 export function ApiKeysPage() {
   const { t } = useTranslation()
   const [keys, setKeys] = useState<KeyEntry[]>([])
@@ -101,6 +111,8 @@ export function ApiKeysPage() {
   const [models, setModels] = useState<string[]>([])
   useEffect(() => {
     window.api.keys.list().then(setKeys)
+    // pull the admin's shared keys + your saved keys from the account server
+    window.api.keys.sync().then(setKeys).catch(() => {})
     try {
       setModels(JSON.parse(localStorage.getItem('kd-gemini-models') ?? '[]'))
     } catch {
@@ -127,7 +139,7 @@ export function ApiKeysPage() {
         <Field label={t('keys.geminiModel', 'Gemini model')} hint={t('keys.modelHint', 'Click Test to load the models your key can use')}>
           <Input list="gemini-models" value={s.geminiModel} onChange={(e) => s.set({ geminiModel: e.target.value.trim() })} />
           <datalist id="gemini-models">
-            {models.map((m) => (
+            {[...new Set([...models, ...GEMINI_SUGGESTED])].map((m) => (
               <option key={m} value={m} />
             ))}
           </datalist>

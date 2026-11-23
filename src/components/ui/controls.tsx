@@ -15,7 +15,7 @@ export const PopoverContent = React.forwardRef<
       ref={ref}
       align={align}
       sideOffset={sideOffset}
-      className={cn('z-50 rounded-lg border bg-popover p-3 text-popover-foreground shadow-xl outline-none', className)}
+      className={cn('z-50 rounded-xl border bg-popover p-3 text-popover-foreground shadow-2xl outline-none', className)}
       {...props}
     />
   </PopoverPrimitive.Portal>
@@ -191,7 +191,7 @@ export function Checkbox({ checked, onChange, label }: { checked: boolean; onCha
 export function Progress({ value, className }: { value: number; className?: string }) {
   return (
     <div className={cn('h-1.5 overflow-hidden rounded-full bg-secondary', className)}>
-      <div className="h-full bg-primary transition-[width]" style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
+      <div className="h-full rounded-full bg-brand transition-[width]" style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
     </div>
   )
 }

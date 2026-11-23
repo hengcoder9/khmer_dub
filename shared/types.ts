@@ -1,6 +1,11 @@
 // Types shared by electron main/preload, backend and renderer.
 
 export const APP_NAME = 'KhmerDub Studio'
+/** Where users get news and help */
+export const CONTACT = {
+  channel: 'https://t.me/HengShopApp',
+  support: 'https://t.me/ChheangHeng369'
+} as const
 
 // ───────────────────────── bridge ─────────────────────────
 
@@ -20,6 +25,8 @@ export interface KeyEntry {
   /** masked, e.g. "AIza…x9Q2" — real key never leaves the main/backend processes */
   masked: string
   label?: string
+  /** handed out by the admin's server — can be used but not seen or removed */
+  shared?: boolean
 }
 
 export interface UpdateInfo {
@@ -31,6 +38,42 @@ export interface UpdateInfo {
   error?: string
 }
 
+// ───────────────────────── studio account ─────────────────────────
+
+/** Account server (PHP, see server/) — live on GoDaddy cPanel. For local testing, change it under Account → Account server. */
+export const ACCOUNT_SERVER = 'https://miennams.net/khmerdub/api/'
+
+export interface AccountUser {
+  id: number
+  email: string
+  name: string
+  role: 'user' | 'admin'
+  status: 'active' | 'disabled'
+  createdAt: string
+}
+
+export interface AccountAccess {
+  active: boolean
+  kind: 'lifetime' | 'paid' | 'trial' | 'none'
+  plan: string | null
+  planCode: string | null
+  /** UTC "YYYY-MM-DD HH:MM:SS"; null = lifetime / none */
+  endsAt: string | null
+  daysLeft: number | null
+  trialEndsAt: string | null
+}
+
+export interface AccountState {
+  server: string
+  signedIn: boolean
+  user: AccountUser | null
+  access: AccountAccess | null
+  /** ms epoch of the last successful check with the server */
+  checkedAt: number
+}
+
+export type AccountResult<T = unknown> = { ok: true; data: T } | { ok: false; error: string; offline?: boolean; signedOut?: boolean }
+
 export interface KdApi {
   getBackend(): Promise<BackendInfo>
   openFile(opts?: { title?: string; filters?: FileFilter[] }): Promise<string | null>
@@ -41,10 +84,22 @@ export interface KdApi {
   /** open a file with its default app (e.g. play an exported MP4) */
   openPath(path: string): Promise<string>
   getAppInfo(): Promise<{ name: string; version: string; documents: string }>
+  /** whole-window UI scale (1 = 100 %) */
+  setZoom(factor: number): void
+  account: {
+    state(): Promise<AccountState>
+    call<T = unknown>(path: string, body?: unknown): Promise<AccountResult<T>>
+    setServer(url: string): Promise<AccountState>
+    signOutLocal(): Promise<AccountState>
+    openAdmin(): Promise<void>
+    openPayUrl(url: string): Promise<void>
+  }
   keys: {
     list(): Promise<KeyEntry[]>
     add(provider: KeyEntry['provider'], key: string, label?: string): Promise<KeyEntry[]>
     remove(id: string): Promise<KeyEntry[]>
+    /** pull the admin's shared keys + your saved keys from the account server, push new local keys up */
+    sync(): Promise<KeyEntry[]>
   }
   update: {
     check(): Promise<UpdateInfo>
@@ -82,11 +137,24 @@ export interface MediaInfo {
   warnings: string[]
 }
 
+export interface GpuStats {
+  name: string
+  /** MiB */
+  memUsed: number
+  memTotal: number
+  /** 0–100 */
+  load: number
+}
+
 export interface SystemStats {
   memTotal: number
   memFree: number
   diskTotal: number
   diskFree: number
+  /** 0–100, averaged over all cores since the previous call */
+  cpu?: number
+  cores?: number
+  gpu?: GpuStats | null
 }
 
 // ───────────────────────── project model ─────────────────────────
@@ -251,8 +319,19 @@ export interface ProjectSettings {
   watermark?: Watermark
 }
 
+export type WatermarkAnimation = 'none' | 'pulse' | 'corners' | 'scroll' | 'float'
+
 export interface Watermark {
+  /** logo image; empty = text-only watermark */
   path: string
+  /** text watermark, e.g. a channel name or @handle (Khmer works) */
+  text?: string
+  textColor?: string
+  /** text height as a fraction of the shorter side */
+  textSize?: number
+  animation?: WatermarkAnimation
+  /** seconds per animation cycle */
+  every?: number
   position: 'tl' | 'tr' | 'bl' | 'br' | 'center'
   /** width as a fraction of the video width */
   size: number
