@@ -1,7 +1,7 @@
 {
   "name": "khmerdub-studio",
   "productName": "KhmerDub Studio",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "description": "AI video dubbing studio (Khmer and more)",
   "private": true,
   "main": "./out/main/index.js",
