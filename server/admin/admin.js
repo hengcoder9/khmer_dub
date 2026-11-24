@@ -719,6 +719,7 @@ async function keys() {
 // ───────── settings ─────────  one form, shown one section at a time (#settings/<section>)
 const SETTINGS_SECTIONS = [
   ['access', 'Access & trial', 'shield'],
+  ['signin', 'Sign-in methods', 'user'],
   ['payments', 'Payments', 'wallet'],
   ['anajakpay', 'AnajakPay (ABA)', 'plug'],
   ['manual', 'Manual KHQR', 'qr']
@@ -728,6 +729,7 @@ async function settings(section) {
   const sec = SETTINGS_SECTIONS.some(([id]) => id === section) ? section : 'access'
   const s = await api('admin/settings')
   const a = s.anajakpay || {}
+  const si = s.signin || {}
   const local = /^https?:\/\/(localhost|127\.|192\.168\.|10\.)/i.test(a.webhookUrl || '')
   const saveRow = `<div class="foot-row"><button class="btn primary" data-save>Save configuration</button></div>`
   const pane = (id, ic, title, sub, body, extra = '') =>
@@ -745,6 +747,38 @@ async function settings(section) {
           <label>Support contact<input id="sSupport" value="${esc(s.support_contact)}" placeholder="Telegram @… / phone / email" /><span class="hint">Shown in the app.</span></label>
         </div>
         ${toggleRow('sReg', 'Allow new sign-ups', 'When off, only existing accounts can sign in. You can still create users under Users.', s.registration_open === '1')}`)}
+
+      ${pane('signin', 'user', 'Sign-in methods', 'Let customers sign in to the app with Google or Telegram, besides email and password. Secrets never leave this server.', `
+        <div><h4 class="sub-title">Google</h4><p class="muted" style="margin:2px 0 0">"Continue with Google" in the app opens the Google account picker in the browser.</p></div>
+        ${steps([
+          ['Create an OAuth client', 'Google Cloud Console → APIs & Services → Credentials → Create credentials → OAuth client ID → Web application. (First time: set up the OAuth consent screen, External, and publish it.)'],
+          ['Paste these two addresses', 'Authorized JavaScript origin and Authorized redirect URI — copy them from the boxes below.'],
+          ['Paste the client ID and secret here', 'Then Save. The Google button turns on in the app.']
+        ])}
+        <div class="grid2">
+          <label>Authorized JavaScript origin<div class="row center" style="flex-wrap:nowrap"><input class="mono" readonly value="${esc(si.googleOrigin)}" /><button class="btn" type="button" data-copy="${esc(si.googleOrigin)}">${icon('copy')} Copy</button></div></label>
+          <label>Authorized redirect URI<div class="row center" style="flex-wrap:nowrap"><input class="mono" readonly value="${esc(si.googleRedirect)}" /><button class="btn" type="button" data-copy="${esc(si.googleRedirect)}">${icon('copy')} Copy</button></div></label>
+          <label>Client ID<input id="gId" class="mono" value="${esc(si.googleClientId)}" placeholder="1234…apps.googleusercontent.com" autocomplete="off" /></label>
+          <label>Client secret${pwField('gSecret', si.googleSecretSet ? 'leave empty to keep the current secret' : 'GOCSPX-…')}<span class="hint">${si.googleSecretSet ? 'Set' : 'Not set'}</span></label>
+        </div>
+        <hr class="sep-line" />
+        <div><h4 class="sub-title">Telegram</h4><p class="muted" style="margin:2px 0 0">"Continue with Telegram" shows the official "Log in with Telegram" button; the customer confirms in the Telegram app.</p></div>
+        ${steps([
+          ['Create a bot', 'In Telegram open @BotFather → /newbot. Copy the bot token and the bot username.'],
+          ['Link the bot to this domain', 'Still in @BotFather: /setdomain → choose your bot → send the domain below.'],
+          ['Paste the username and token here', 'Then Save. The Telegram button turns on in the app.']
+        ])}
+        <div class="grid2">
+          <label>Domain for /setdomain<div class="row center" style="flex-wrap:nowrap"><input class="mono" readonly value="${esc(si.telegramDomain)}" /><button class="btn" type="button" data-copy="${esc(si.telegramDomain)}">${icon('copy')} Copy</button></div></label>
+          <label>Bot username<input id="tgBot" class="mono" value="${esc(si.telegramBot)}" placeholder="KhmerDubBot" autocomplete="off" /></label>
+          <label>Bot token${pwField('tgToken', si.telegramTokenSet ? 'leave empty to keep the current token' : '123456789:AA…')}<span class="hint">${si.telegramTokenSet ? 'Set' : 'Not set'}</span></label>
+        </div>
+        <div class="row center">
+          ${si.methods?.google ? '<button class="btn danger sm" id="gClear" type="button">Turn off Google</button>' : ''}
+          ${si.methods?.telegram ? '<button class="btn danger sm" id="tgClear" type="button">Turn off Telegram</button>' : ''}
+        </div>`,
+        `<span class="st ${si.methods?.google ? 'ok' : 'warn'}"><span class="dot ${si.methods?.google ? 'ok' : 'warn'}"></span>Google ${si.methods?.google ? 'on' : 'off'}</span>
+         <span class="st ${si.methods?.telegram ? 'ok' : 'warn'}"><span class="dot ${si.methods?.telegram ? 'ok' : 'warn'}"></span>Telegram ${si.methods?.telegram ? 'on' : 'off'}</span>`)}
 
       ${pane('payments', 'wallet', 'Payments', 'How customers pay for a plan.', `
         <div class="grid2">
@@ -823,6 +857,10 @@ async function settings(section) {
       anajakpay_public_url: $('#apUrl').value.trim()
     }
     if ($('#apSecret').value.trim()) body.anajakpay_secret = $('#apSecret').value.trim()
+    body.google_client_id = $('#gId').value.trim()
+    if ($('#gSecret').value.trim()) body.google_client_secret = $('#gSecret').value.trim()
+    body.telegram_bot_username = $('#tgBot').value.trim()
+    if ($('#tgToken').value.trim()) body.telegram_bot_token = $('#tgToken').value.trim()
     if (qr !== undefined) body.manual_qr_image = qr
     try {
       await api('admin/settings', body)
@@ -835,6 +873,14 @@ async function settings(section) {
   }
   $$('[data-save]').forEach((b) => (b.onclick = save))
 
+  $$('[data-copy]').forEach((b) => (b.onclick = () => navigator.clipboard?.writeText(b.dataset.copy).then(() => toast('Copied'))))
+  const off = (flag, what) => async () => {
+    if (!confirm(`Turn off ${what} sign-in? Accounts made with it stay, but cannot sign in with ${what} until you add it again.`)) return
+    await api('admin/settings', { [flag]: true }).catch((e) => toast(e.message, true))
+    settings(sec)
+  }
+  $('#gClear') && ($('#gClear').onclick = off('google_clear', 'Google'))
+  $('#tgClear') && ($('#tgClear').onclick = off('telegram_clear', 'Telegram'))
   $('#apCopy').onclick = () => navigator.clipboard?.writeText($('#apHook').value).then(() => toast('Webhook URL copied'))
   $('#apTest').onclick = async () => {
     const out = $('#apResult')

@@ -5,7 +5,7 @@ import QRCode from 'qrcode'
 import { ArrowLeft, ArrowUp, BadgeCheck, CheckCircle2, Clock, Copy, Crown, ExternalLink, Gift, History, KeyRound, Loader2, LogOut, Mail, Server, ShieldCheck, Sparkles, Ticket, UserRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/controls'
-import { acct, daysLeft, formatPrice, hasAccess, loadPlans, register, setServer, signIn, signOut, useAccount, type Plan } from '@/store/account'
+import { acct, daysLeft, formatPrice, hasAccess, loadPlans, register, setServer, signIn, signOut, socialSignIn, useAccount, type Plan, type SocialProvider } from '@/store/account'
 import { cn } from '@/lib/utils'
 import { khqrInfo } from '@/lib/khqr'
 import { APP_NAME } from '@shared/types'
@@ -30,7 +30,93 @@ interface Order {
 const utc = (d: string) => new Date(d.replace(' ', 'T') + 'Z')
 const money = (n: number, c: string) => (c === 'KHR' ? `${Math.round(n).toLocaleString()} ៛` : `$${n.toFixed(2)}`)
 
+// ───────────────── brand marks ─────────────────
+
+export function GoogleMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} aria-hidden>
+      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
+      <path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
+      <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z" />
+      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
+    </svg>
+  )
+}
+
+export function TelegramMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden>
+      <circle cx="12" cy="12" r="12" fill="#29A9EB" />
+      <path fill="#fff" d="M5.4 11.8 16.9 7.4c.5-.2 1 .1.8.9l-2 9.3c-.1.6-.5.8-1 .5l-2.9-2.1-1.4 1.3c-.2.2-.3.3-.6.3l.2-2.9 5.3-4.8c.2-.2 0-.3-.3-.1l-6.6 4.1-2.8-.9c-.6-.2-.6-.6.1-.9z" />
+    </svg>
+  )
+}
+
 // ───────────────── signed out ─────────────────
+
+/** "Continue with Google / Telegram": opens the browser, waits for the server to confirm. */
+function SocialButtons({ onError }: { onError: (m: string) => void }) {
+  const { t } = useTranslation()
+  const auth = useAccount((s) => s.auth)
+  const [waiting, setWaiting] = useState<SocialProvider | null>(null)
+  const ctl = useRef<AbortController | null>(null)
+  const reopen = useRef<() => void>(() => {})
+  useEffect(() => () => ctl.current?.abort(), [])
+
+  const go = async (p: SocialProvider) => {
+    if (!auth[p]) {
+      onError(t('acct.notSetUp', '{{p}} sign-in is not set up on this server yet — use email for now.', { p: p === 'google' ? 'Google' : 'Telegram' }))
+      return
+    }
+    onError('')
+    ctl.current?.abort()
+    const c = (ctl.current = new AbortController())
+    setWaiting(p)
+    try {
+      await socialSignIn(p, c.signal, (r) => (reopen.current = r))
+      toast.success(t('acct.welcomeBack', 'Signed in'))
+    } catch (e) {
+      if (!c.signal.aborted) onError((e as Error).message)
+    } finally {
+      if (ctl.current === c) setWaiting(null)
+    }
+  }
+
+  if (waiting)
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-5 text-center">
+        <div className="relative">
+          {waiting === 'google' ? <GoogleMark className="size-10" /> : <TelegramMark className="size-10" />}
+          <Loader2 className="absolute -bottom-1 -right-1 size-5 animate-spin rounded-full bg-card p-0.5 text-primary" />
+        </div>
+        <div className="text-sm font-semibold">{t('acct.finishBrowser', 'Finish signing in in your browser')}</div>
+        <p className="text-xs text-muted-foreground">
+          {waiting === 'google'
+            ? t('acct.finishGoogle', 'Choose your Google account. This window signs in by itself when you are done.')
+            : t('acct.finishTelegram', 'Tap “Log in with Telegram” and confirm in the Telegram app. This window signs in by itself.')}
+        </p>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => reopen.current()}>
+            <ExternalLink /> {t('acct.openAgain', 'Open the page again')}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => (ctl.current?.abort(), setWaiting(null))}>
+            {t('common.cancel', 'Cancel')}
+          </Button>
+        </div>
+      </div>
+    )
+
+  return (
+    <div className="flex flex-col gap-2">
+      <button type="button" onClick={() => go('google')} className="flex h-11 items-center justify-center gap-3 rounded-xl border bg-white text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50">
+        <GoogleMark className="size-5" /> {t('acct.withGoogle', 'Continue with Google')}
+      </button>
+      <button type="button" onClick={() => go('telegram')} className="flex h-11 items-center justify-center gap-3 rounded-xl bg-[#29A9EB] text-sm font-semibold text-white shadow-sm transition hover:brightness-110">
+        <TelegramMark className="size-5 [&_circle]:fill-white/20" /> {t('acct.withTelegram', 'Continue with Telegram')}
+      </button>
+    </div>
+  )
+}
 
 function AuthForm() {
   const { t } = useTranslation()
@@ -83,6 +169,16 @@ function AuthForm() {
         </ul>
       </div>
       <form onSubmit={submit} className="flex flex-col gap-3 p-7">
+        <div>
+          <h3 className="text-lg font-bold tracking-tight">{mode === 'in' ? t('acct.welcome', 'Welcome back') : t('acct.join', 'Create your account')}</h3>
+          <p className="text-xs text-muted-foreground">{t('acct.pick', 'Sign in with Google, Telegram or your email.')}</p>
+        </div>
+        <SocialButtons onError={setErr} />
+        <div className="flex items-center gap-3 text-[11px] uppercase tracking-wider text-muted-foreground">
+          <span className="h-px flex-1 bg-border" />
+          {t('acct.orEmail', 'or with email')}
+          <span className="h-px flex-1 bg-border" />
+        </div>
         <div className="flex rounded-lg bg-muted p-0.5">
           {(['in', 'up'] as const).map((m) => (
             <button
@@ -493,28 +589,57 @@ function HistoryList() {
 
 function PasswordForm({ onDone }: { onDone: () => void }) {
   const { t } = useTranslation()
+  const user = useAccount((s) => s.user)
   const [cur, setCur] = useState('')
   const [pw, setPw] = useState('')
+  const hasPw = user?.hasPassword !== false
+  const tgOnly = user?.provider === 'telegram' && !hasPw
   const save = () =>
     acct('auth/password', { current: cur, password: pw })
       .then(() => {
-        toast.success(t('acct.pwChanged', 'Password changed — other devices were signed out'))
+        toast.success(hasPw ? t('acct.pwChanged', 'Password changed — other devices were signed out') : t('acct.pwSet', 'Password set — you can now also sign in with your email'))
+        acct('me').catch(() => {})
         onDone()
       })
       .catch((e: Error) => toast.error(e.message))
+  const methods = [
+    { id: 'google', icon: <GoogleMark className="size-5" />, name: 'Google', on: !!user?.google, detail: user?.google ? user.email : t('acct.signInOnce', 'Sign in with Google once to connect it') },
+    { id: 'telegram', icon: <TelegramMark className="size-5" />, name: 'Telegram', on: !!user?.telegram, detail: user?.telegram ? (user.telegram !== 'connected' ? `@${user.telegram}` : t('acct.connected', 'Connected')) : t('acct.notConnected', 'Not connected') },
+    { id: 'email', icon: <Mail className="size-5 text-primary" />, name: t('acct.emailPw', 'Email & password'), on: hasPw && !tgOnly, detail: hasPw ? user?.email : t('acct.noPw', 'No password yet') }
+  ]
   return (
+    <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-3 gap-2">
+        {methods.map((m) => (
+          <div key={m.id} className={cn('flex items-center gap-3 rounded-xl border p-3', m.on && 'border-success/40 bg-success/5')}>
+            {m.icon}
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold">{m.name}</div>
+              <div className="truncate text-[11px] text-muted-foreground" title={m.detail ?? ''}>{m.detail}</div>
+            </div>
+            {m.on && <CheckCircle2 className="size-4 shrink-0 text-success" />}
+          </div>
+        ))}
+      </div>
+      {tgOnly ? (
+        <p className="rounded-xl border p-3 text-xs text-muted-foreground">{t('acct.tgOnly', 'This account signs in with Telegram, so it has no password. Use “Continue with Telegram” on other PCs.')}</p>
+      ) : (
     <div className="flex items-end gap-2 rounded-xl border p-3">
+      {hasPw && (
       <label className="flex flex-1 flex-col gap-1 text-xs font-medium">
         {t('acct.curPw', 'Current password')}
         <Input type="password" value={cur} onChange={(e) => setCur(e.target.value)} />
       </label>
+      )}
       <label className="flex flex-1 flex-col gap-1 text-xs font-medium">
         {t('acct.newPw', 'New password (min 8)')}
         <Input type="password" value={pw} onChange={(e) => setPw(e.target.value)} />
       </label>
-      <Button size="sm" onClick={save} disabled={!cur || pw.length < 8}>
-        {t('common.save', 'Save')}
+      <Button size="sm" onClick={save} disabled={(hasPw && !cur) || pw.length < 8}>
+        {hasPw ? t('common.save', 'Save') : t('acct.setPw', 'Set password')}
       </Button>
+    </div>
+      )}
     </div>
   )
 }
@@ -538,14 +663,30 @@ export function AccountPanel() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-3">
-        <div className="grid size-12 place-items-center rounded-full bg-brand text-lg font-bold text-primary-foreground">{initials}</div>
+        <div className="relative">
+          {user.avatar ? (
+            <img src={user.avatar} referrerPolicy="no-referrer" className="size-12 rounded-full object-cover ring-2 ring-primary/30" />
+          ) : (
+            <div className="grid size-12 place-items-center rounded-full bg-brand text-lg font-bold text-primary-foreground">{initials}</div>
+          )}
+          {user.provider === 'google' && <GoogleMark className="absolute -bottom-0.5 -right-0.5 size-5 rounded-full bg-white p-0.5 shadow" />}
+          {user.provider === 'telegram' && <TelegramMark className="absolute -bottom-0.5 -right-0.5 size-5 rounded-full shadow" />}
+        </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 font-semibold">
             {user.name}
             {user.role === 'admin' && <span className="chip border-primary/40 bg-primary/10 text-[10px] text-primary">Admin</span>}
           </div>
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Mail className="size-3" /> {user.email}
+            {user.provider === 'telegram' ? (
+              <>
+                <TelegramMark className="size-3" /> {user.telegram && user.telegram !== 'connected' ? `@${user.telegram}` : 'Telegram'}
+              </>
+            ) : (
+              <>
+                <Mail className="size-3" /> {user.email}
+              </>
+            )}
           </div>
         </div>
         {user.role === 'admin' && (
@@ -565,7 +706,7 @@ export function AccountPanel() {
           [
             ['plans', Sparkles, t('acct.tPlans', 'Plans')],
             ['history', History, t('acct.tHistory', 'Payments')],
-            ['security', KeyRound, t('acct.tSecurity', 'Password')]
+            ['security', KeyRound, t('acct.tSignIn', 'Sign-in')]
           ] as const
         ).map(([id, Icon, label]) => (
           <button key={id} onClick={() => setTab(id)} className={cn('-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm', tab === id ? 'border-primary font-medium text-primary' : 'border-transparent text-muted-foreground hover:text-foreground')}>

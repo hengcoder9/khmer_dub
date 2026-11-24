@@ -996,3 +996,23 @@ thumb.aiNote	ម៉ូដែលរូបភាព Gemini · ប្រហែល $
 thumb.frameNote	ឥតគិតថ្លៃ · ដំណើរការដោយគ្មានអ៊ីនធឺណិត
 thumb.open	បើក
 jobGroup.thumbnail	រូបក្រប AI
+acct.welcome	សូមស្វាគមន៍ការត្រឡប់មកវិញ
+acct.join	បង្កើតគណនីរបស់អ្នក
+acct.pick	ចូលដោយប្រើ Google, Telegram ឬអ៊ីមែលរបស់អ្នក។
+acct.orEmail	ឬប្រើអ៊ីមែល
+acct.withGoogle	បន្តជាមួយ Google
+acct.withTelegram	បន្តជាមួយ Telegram
+acct.notSetUp	ការចូលដោយ {{p}} មិនទាន់បានរៀបចំនៅលើម៉ាស៊ីនមេនេះទេ — សូមប្រើអ៊ីមែលសិន។
+acct.finishBrowser	បញ្ចប់ការចូលនៅក្នុងកម្មវិធីរុករករបស់អ្នក
+acct.finishGoogle	ជ្រើសរើសគណនី Google របស់អ្នក។ កម្មវិធីនឹងចូលដោយស្វ័យប្រវត្តិពេលអ្នករួចរាល់។
+acct.finishTelegram	ចុច «Log in with Telegram» ហើយបញ្ជាក់នៅក្នុងកម្មវិធី Telegram។ កម្មវិធីនឹងចូលដោយស្វ័យប្រវត្តិ។
+acct.openAgain	បើកទំព័រម្ដងទៀត
+acct.tSignIn	ការចូល
+acct.pwSet	បានកំណត់ពាក្យសម្ងាត់ — ឥឡូវអ្នកអាចចូលដោយអ៊ីមែលបានដែរ
+acct.signInOnce	ចូលដោយ Google ម្ដង ដើម្បីភ្ជាប់
+acct.connected	បានភ្ជាប់
+acct.notConnected	មិនទាន់ភ្ជាប់
+acct.emailPw	អ៊ីមែល និងពាក្យសម្ងាត់
+acct.noPw	មិនទាន់មានពាក្យសម្ងាត់
+acct.tgOnly	គណនីនេះចូលដោយ Telegram ដូច្នេះគ្មានពាក្យសម្ងាត់ទេ។ ប្រើ «បន្តជាមួយ Telegram» នៅលើកុំព្យូទ័រផ្សេង។
+acct.setPw	កំណត់ពាក្យសម្ងាត់

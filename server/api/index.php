@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/../lib/bootstrap.php';
 require __DIR__ . '/../lib/payments.php';
 require __DIR__ . '/../lib/keys.php';
+require __DIR__ . '/../lib/social.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $route = trim((string)($_GET['r'] ?? ''), '/');
@@ -29,16 +30,28 @@ function trial_days(): int
     return max(0, (int)setting('trial_days', (string)cfg('trial_days', 3)));
 }
 
+/** New session for a verified user: device limit (oldest signed out) + audit. */
+function login_session(array $u, string $device, string $via = 'email'): string
+{
+    $max = max(1, (int)setting('max_devices', '2'));
+    $token = new_session((int)$u['id'], $device);
+    $ids = array_column(q('SELECT id FROM sessions WHERE user_id = ? AND expires_at > ? ORDER BY last_seen_at DESC', [$u['id'], now()])->fetchAll(), 'id');
+    if (count($ids) > $max) q('DELETE FROM sessions WHERE id IN (' . implode(',', array_map('intval', array_slice($ids, $max))) . ')');
+    audit((int)$u['id'], 'user.login', 'user:' . $u['id'], ['via' => $via]);
+    return $token;
+}
+
 try {
+    social_migrate();
     switch ("$method $route") {
         // ───────── public ─────────
         case 'GET health':
             db();
-            json_out(['ok' => true, 'name' => cfg('app_name', 'KhmerDub Studio'), 'time' => now(), 'payment' => payment_mode(), 'trialDays' => trial_days()]);
+            json_out(['ok' => true, 'name' => cfg('app_name', 'KhmerDub Studio'), 'time' => now(), 'payment' => payment_mode(), 'trialDays' => trial_days(), 'auth' => auth_methods()]);
 
         case 'GET plans':
             $rows = q('SELECT * FROM plans WHERE enabled = 1 ORDER BY sort, id')->fetchAll();
-            json_out(['plans' => array_map('public_plan', $rows), 'currency' => setting('currency', 'USD'), 'payment' => payment_mode(), 'support' => setting('support_contact', ''), 'trialDays' => trial_days()]);
+            json_out(['plans' => array_map('public_plan', $rows), 'currency' => setting('currency', 'USD'), 'payment' => payment_mode(), 'support' => setting('support_contact', ''), 'trialDays' => trial_days(), 'auth' => auth_methods()]);
 
         // ───────── auth ─────────
         case 'POST auth/register':
@@ -62,6 +75,7 @@ try {
             $email = mb_strtolower(str_in('email', 190));
             check_throttle($email);
             $u = row('SELECT * FROM users WHERE email = ?', [$email]);
+            if ($u && $u['password_hash'] === '') fail('This account signs in with ' . ($u['auth_provider'] === 'telegram' ? 'Telegram' : 'Google') . ' — use that button above.', 401);
             if (!$u || !password_verify((string)(body()['password'] ?? ''), $u['password_hash'])) {
                 q('INSERT INTO login_failures (email, ip, at) VALUES (?,?,?)', [$email, client_ip(), now()]);
                 fail('Wrong email or password', 401);
@@ -69,12 +83,29 @@ try {
             if ($u['status'] !== 'active') fail('This account is disabled. Contact support.', 403);
             if (password_needs_rehash($u['password_hash'], PASSWORD_DEFAULT)) q('UPDATE users SET password_hash = ? WHERE id = ?', [password_hash((string)body()['password'], PASSWORD_DEFAULT), $u['id']]);
             // device limit: oldest sessions are signed out
-            $max = max(1, (int)setting('max_devices', '2'));
-            $token = new_session((int)$u['id'], str_in('device', 120, false));
-            $ids = array_column(q('SELECT id FROM sessions WHERE user_id = ? AND expires_at > ? ORDER BY last_seen_at DESC', [$u['id'], now()])->fetchAll(), 'id');
-            if (count($ids) > $max) q('DELETE FROM sessions WHERE id IN (' . implode(',', array_map('intval', array_slice($ids, $max))) . ')');
-            audit((int)$u['id'], 'user.login', 'user:' . $u['id']);
+            $token = login_session($u, str_in('device', 120, false));
             json_out(['token' => $token] + me_payload($u));
+
+        // ───────── Google / Telegram (browser hand-off, see lib/social.php) ─────────
+        case 'GET auth/methods':
+            json_out(auth_methods());
+
+        case 'POST auth/ext/start':
+            json_out(ticket_start(str_in('provider', 10)));
+
+        case 'POST auth/ext/poll':
+            $r = ticket_poll(str_in('state', 64), str_in('device', 120, false));
+            if (!empty($r['pending'])) json_out(['pending' => true]);
+            json_out(['token' => $r['token']] + me_payload($r['user']));
+
+        case 'GET auth/web':
+            auth_web();
+
+        case 'GET auth/google/callback':
+            google_callback();
+
+        case 'GET auth/telegram/callback':
+            telegram_callback();
 
         case 'POST auth/logout':
             $u = auth_user();
@@ -83,7 +114,8 @@ try {
 
         case 'POST auth/password':
             $u = auth_user();
-            if (!password_verify((string)(body()['current'] ?? ''), $u['password_hash'])) fail('Current password is wrong', 401);
+            if ($u['password_hash'] !== '' && !password_verify((string)(body()['current'] ?? ''), $u['password_hash'])) fail('Current password is wrong', 401);
+            if (str_ends_with($u['email'], '@telegram.local')) fail('Telegram accounts sign in with Telegram — there is no email to use with a password.');
             $pw = (string)(body()['password'] ?? '');
             if (strlen($pw) < PW_MIN) fail('Password must be at least ' . PW_MIN . ' characters');
             q('UPDATE users SET password_hash = ? WHERE id = ?', [password_hash($pw, PASSWORD_DEFAULT), $u['id']]);
@@ -377,6 +409,19 @@ try {
             foreach ($keys as $k) $out[$k] = setting($k, '');
             $ap = anajakpay_creds();
             $out['anajakpay_configured'] = anajakpay_ready();
+            $g = google_creds();
+            $tg = telegram_creds();
+            $host = parse_url(api_base(), PHP_URL_HOST);
+            $out['signin'] = [
+                'googleClientId' => $g['id'],
+                'googleSecretSet' => $g['secret'] !== '',
+                'googleRedirect' => google_redirect_uri(),
+                'googleOrigin' => 'https://' . $host,
+                'telegramBot' => $tg['bot'],
+                'telegramTokenSet' => $tg['token'] !== '',
+                'telegramDomain' => $host,
+                'methods' => auth_methods(),
+            ];
             // never send the secret — only whether it is set and its last 4 characters
             $out['anajakpay'] = [
                 'apiKey' => (string)($ap['api_key'] ?? ''),
@@ -426,9 +471,34 @@ try {
                 },
             ];
             if (($b['anajakpay_secret'] ?? '') === '') unset($b['anajakpay_secret']);
+            // sign-in methods (secrets are write-only and stored encrypted; empty = keep)
+            if (array_key_exists('google_client_id', $b)) {
+                $v = trim((string)$b['google_client_id']);
+                if ($v !== '' && !preg_match('/^[\w.-]+\.apps\.googleusercontent\.com$/', $v)) fail('Google client ID ends with .apps.googleusercontent.com');
+                set_setting('google_client_id', $v);
+            }
+            if (trim((string)($b['google_client_secret'] ?? '')) !== '') set_setting('google_client_secret', key_encrypt(trim((string)$b['google_client_secret'])));
+            if (!empty($b['google_clear'])) {
+                set_setting('google_client_id', '');
+                set_setting('google_client_secret', '');
+            }
+            if (array_key_exists('telegram_bot_username', $b)) {
+                $v = ltrim(trim((string)$b['telegram_bot_username']), '@');
+                if ($v !== '' && !preg_match('/^\w{5,32}$/', $v)) fail('Telegram bot username looks wrong (e.g. KhmerDubBot)');
+                set_setting('telegram_bot_username', $v);
+            }
+            if (trim((string)($b['telegram_bot_token'] ?? '')) !== '') {
+                $v = trim((string)$b['telegram_bot_token']);
+                if (!preg_match('/^\d+:[\w-]{30,}$/', $v)) fail('Telegram bot token looks wrong (from @BotFather, like 123456:ABC…)');
+                set_setting('telegram_bot_token', key_encrypt($v));
+            }
+            if (!empty($b['telegram_clear'])) {
+                set_setting('telegram_bot_username', '');
+                set_setting('telegram_bot_token', '');
+            }
             if (!empty($b['anajakpay_secret_clear'])) set_setting('anajakpay_secret', '');
             foreach ($allowed as $k => $clean) if (array_key_exists($k, $b)) set_setting($k, $clean($b[$k]));
-            $logged = array_diff_key($b, ['manual_qr_image' => 1, 'anajakpay_secret' => 1]);
+            $logged = array_diff_key($b, ['manual_qr_image' => 1, 'anajakpay_secret' => 1, 'google_client_secret' => 1, 'telegram_bot_token' => 1]);
             if (isset($b['anajakpay_secret'])) $logged['anajakpay_secret'] = '(changed)';
             audit((int)$admin['id'], 'admin.settings', '', $logged);
             json_out(['ok' => true]);

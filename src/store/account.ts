@@ -19,7 +19,11 @@ interface AccountStore extends AccountState {
   currency: 'USD' | 'KHR'
   support: string
   trialDays: number
+  /** sign-in methods the server has set up */
+  auth: { email: boolean; google: boolean; telegram: boolean }
 }
+
+export type SocialProvider = 'google' | 'telegram'
 
 export const useAccount = create<AccountStore>()(() => ({
   loaded: false,
@@ -32,7 +36,8 @@ export const useAccount = create<AccountStore>()(() => ({
   plans: [],
   currency: 'USD',
   support: '',
-  trialDays: 3
+  trialDays: 3,
+  auth: { email: true, google: false, telegram: false }
 }))
 
 const utc = (d: string) => Date.parse(d.replace(' ', 'T') + 'Z')
@@ -72,8 +77,8 @@ export async function loadAccount() {
 }
 
 export async function loadPlans() {
-  const r = await acct<{ plans: Plan[]; currency: 'USD' | 'KHR'; support: string; trialDays: number }>('plans')
-  useAccount.setState({ plans: r.plans, currency: r.currency, support: r.support ?? '', trialDays: r.trialDays ?? 3 })
+  const r = await acct<{ plans: Plan[]; currency: 'USD' | 'KHR'; support: string; trialDays: number; auth?: AccountStore['auth'] }>('plans')
+  useAccount.setState({ plans: r.plans, currency: r.currency, support: r.support ?? '', trialDays: r.trialDays ?? 3, auth: r.auth ?? { email: true, google: false, telegram: false } })
 }
 
 export async function signIn(email: string, password: string) {
@@ -82,6 +87,35 @@ export async function signIn(email: string, password: string) {
 
 export async function register(email: string, password: string, name: string) {
   await acct('auth/register', { email, password, name })
+}
+
+/**
+ * Google / Telegram: the server gives a one-time link, the browser does the sign-in, the app polls until the
+ * server has verified it (then main stores the session like a normal sign-in). `reopen` opens the link again.
+ */
+export async function socialSignIn(provider: SocialProvider, signal: AbortSignal, onLink?: (reopen: () => void) => void): Promise<void> {
+  const { state, url, expiresIn } = await acct<{ state: string; url: string; expiresIn: number }>('auth/ext/start', { provider })
+  const open = () => window.api.account.openPayUrl(url)
+  open()
+  onLink?.(open)
+  const until = Date.now() + (expiresIn || 600) * 1000
+  while (Date.now() < until) {
+    await new Promise((r) => setTimeout(r, 2000))
+    if (signal.aborted) throw new Error('Canceled')
+    let r: { pending?: boolean }
+    try {
+      r = await acct<{ pending?: boolean }>('auth/ext/poll', { state })
+    } catch (e) {
+      // a network hiccup: keep waiting; a real answer (expired, canceled, disabled…) ends it
+      if (useAccount.getState().offline) continue
+      throw e
+    }
+    if (!r.pending) {
+      loadPlans().catch(() => {})
+      return
+    }
+  }
+  throw new Error('Sign-in timed out — try again')
 }
 
 export async function signOut() {

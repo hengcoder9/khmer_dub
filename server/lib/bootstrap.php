@@ -177,6 +177,12 @@ function public_user(array $u): array
         'role' => $u['role'],
         'status' => $u['status'],
         'createdAt' => $u['created_at'],
+        // how the account signs in (Google / Telegram accounts may have no password)
+        'provider' => $u['auth_provider'] ?? 'email',
+        'google' => !empty($u['google_sub']),
+        'telegram' => !empty($u['telegram_id']) ? ($u['telegram_username'] ?? '') ?: 'connected' : null,
+        'avatar' => $u['avatar_url'] ?? null,
+        'hasPassword' => ($u['password_hash'] ?? '') !== '',
     ];
 }
 

@@ -50,6 +50,16 @@ export interface AccountUser {
   role: 'user' | 'admin'
   status: 'active' | 'disabled'
   createdAt: string
+  /** how the account was created */
+  provider?: 'email' | 'google' | 'telegram'
+  /** Google connected */
+  google?: boolean
+  /** Telegram username ("connected" when it has none), null = not connected */
+  telegram?: string | null
+  /** profile picture from Google / Telegram */
+  avatar?: string | null
+  /** false for Google / Telegram accounts that never set a password */
+  hasPassword?: boolean
 }
 
 export interface AccountAccess {

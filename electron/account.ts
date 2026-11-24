@@ -59,14 +59,15 @@ export function signOutLocal(): AccountState {
 }
 
 // renderer may call these routes only (never the admin API)
-const ALLOWED = /^(health|plans|me|me\/history|redeem|auth\/(login|register|logout|password)|pay\/(create|status|cancel))(\?[\w=&.-]*)?$/
+const ALLOWED = /^(health|plans|me|me\/history|redeem|auth\/(login|register|logout|password|methods|ext\/start|ext\/poll)|pay\/(create|status|cancel))(\?[\w=&.-]*)?$/
 
 /** Call the account server as the signed-in user. Stores the session on login/register, clears it on 401. */
 export async function accountCall(path: string, body?: unknown, trusted = false): Promise<unknown> {
   if (!trusted && !ALLOWED.test(path)) throw new Error(`Not allowed: ${path}`)
   const s = load()
   const tok = token(s)
-  const isAuth = /^auth\/(login|register)$/.test(path)
+  // routes that answer with a new session token (Google / Telegram: the poll after the browser sign-in)
+  const isAuth = /^auth\/(login|register|ext\/poll)$/.test(path)
   const payload = isAuth ? { ...(body as object), device: device() } : body
   let res: Response
   try {

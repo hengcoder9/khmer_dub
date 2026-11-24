@@ -153,7 +153,8 @@ ipcMain.handle('account:call', async (_e, path: string, body?: unknown) => {
   try {
     const data = await accountCall(path, body)
     // signing in or out changes which shared keys this PC may use
-    if (/^auth\/(login|register|logout)$/.test(path)) void resyncKeys()
+    // (Google / Telegram: the poll that finally returns the account)
+    if (/^auth\/(login|register|logout)$/.test(path) || (path === 'auth/ext/poll' && (data as { user?: unknown })?.user)) void resyncKeys()
     return { ok: true, data }
   } catch (e) {
     const err = e as Error & { offline?: boolean; signedOut?: boolean }
