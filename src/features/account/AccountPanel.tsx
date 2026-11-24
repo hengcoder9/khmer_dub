@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import QRCode from 'qrcode'
-import { ArrowLeft, BadgeCheck, CheckCircle2, Clock, Copy, Crown, ExternalLink, Gift, History, KeyRound, Loader2, LogOut, Mail, Server, ShieldCheck, Sparkles, Ticket, UserRound } from 'lucide-react'
+import { ArrowLeft, ArrowUp, BadgeCheck, CheckCircle2, Clock, Copy, Crown, ExternalLink, Gift, History, KeyRound, Loader2, LogOut, Mail, Server, ShieldCheck, Sparkles, Ticket, UserRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/controls'
 import { acct, daysLeft, formatPrice, hasAccess, loadPlans, register, setServer, signIn, signOut, useAccount, type Plan } from '@/store/account'
@@ -360,28 +360,79 @@ function PlanGrid({ onBuy }: { onBuy: (p: Plan) => void }) {
       </div>
     )
   const monthly = plans.find((p) => p.months === 1)
+  const paid = hasAccess() && (a?.kind === 'paid' || a?.kind === 'lifetime')
+  const current = paid ? plans.find((p) => (a?.kind === 'lifetime' ? p.months === null : p.code === a?.planCode)) : undefined
+  // how long a plan lasts, for comparing (lifetime = longest)
+  const span = (p: Plan) => (p.months === null ? Infinity : p.months)
   return (
     <div className="grid grid-cols-5 gap-2">
       {plans.map((p) => {
-        const featured = p.code === '6m' || p.badge === 'Popular'
+        const isCurrent = !!current && p.id === current.id
+        const upgrade = !!current && !isCurrent && span(p) > span(current)
+        const included = a?.kind === 'lifetime' && !isCurrent // lifetime already covers every plan
+        const featured = !current && (p.code === '6m' || p.badge === 'Popular')
         const per = p.months ? (currency === 'KHR' ? p.priceKhr : p.priceUsd) / p.months : null
         const base = monthly ? (currency === 'KHR' ? monthly.priceKhr : monthly.priceUsd) : null
         const save = per && base && p.months! > 1 ? Math.round(100 * (1 - per / base)) : 0
-        const owned = a?.kind === 'lifetime' && p.months === null
+        const badge = isCurrent ? t('acct.active', 'Active') : p.badge
         return (
-          <div key={p.id} className={cn('relative flex flex-col gap-2 rounded-2xl border bg-card p-4', featured && 'border-primary/60 shadow-lg shadow-primary/10 ring-1 ring-primary/40')}>
-            {p.badge && <span className={cn('absolute -top-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold', featured ? 'bg-brand text-primary-foreground' : 'border bg-card text-primary')}>{p.badge}</span>}
+          <div
+            key={p.id}
+            className={cn(
+              'relative flex flex-col gap-2 rounded-2xl border bg-card p-4',
+              featured && 'border-primary/60 shadow-lg shadow-primary/10 ring-1 ring-primary/40',
+              isCurrent && 'border-success/60 bg-success/5 shadow-lg shadow-success/10 ring-1 ring-success/50',
+              included && 'opacity-60'
+            )}
+          >
+            {badge && (
+              <span
+                className={cn(
+                  'absolute -top-2.5 left-1/2 inline-flex -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold',
+                  isCurrent ? 'bg-success text-white' : featured ? 'bg-brand text-primary-foreground' : 'border bg-card text-primary'
+                )}
+              >
+                {isCurrent && <CheckCircle2 className="size-3" />}
+                {badge}
+              </span>
+            )}
             <div className="text-sm font-semibold">{p.name}</div>
             <div className="text-2xl font-bold tracking-tight">{formatPrice(p, currency)}</div>
             <div className="min-h-8 text-[11px] text-muted-foreground">
-              {p.months === null
-                ? t('acct.once', 'one payment, forever')
-                : p.months > 1 && per
-                  ? `${currency === 'KHR' ? `${Math.round(per).toLocaleString()} ៛` : `$${per.toFixed(2)}`}/${t('acct.mo', 'mo')}${save > 0 ? ` · ${t('acct.save', 'save')} ${save}%` : ''}`
-                  : t('acct.monthly', 'billed monthly')}
+              {isCurrent && a?.kind === 'paid' && a.endsAt ? (
+                <span className="font-medium text-success">{t('acct.activeUntil', 'Your plan · until {{date}}', { date: utc(a.endsAt).toLocaleDateString() })}</span>
+              ) : isCurrent ? (
+                <span className="font-medium text-success">{t('acct.activeForever', 'Your plan · never expires')}</span>
+              ) : p.months === null ? (
+                t('acct.once', 'one payment, forever')
+              ) : p.months > 1 && per ? (
+                `${currency === 'KHR' ? `${Math.round(per).toLocaleString()} ៛` : `$${per.toFixed(2)}`}/${t('acct.mo', 'mo')}${save > 0 ? ` · ${t('acct.save', 'save')} ${save}%` : ''}`
+              ) : (
+                t('acct.monthly', 'billed monthly')
+              )}
             </div>
-            <Button size="sm" variant={featured ? 'default' : 'outline'} disabled={owned} onClick={() => onBuy(p)}>
-              {owned ? t('acct.owned', 'Owned') : hasAccess() && a?.kind !== 'trial' ? t('acct.extend', 'Extend') : t('acct.buy', 'Buy')}
+            <Button
+              size="sm"
+              className={cn('mt-auto', isCurrent && a?.kind === 'paid' && 'bg-success text-white hover:bg-success/90')}
+              variant={isCurrent || upgrade || featured ? 'default' : 'outline'}
+              disabled={included || (isCurrent && a?.kind === 'lifetime')}
+              onClick={() => onBuy(p)}
+            >
+              {isCurrent && a?.kind === 'lifetime' ? (
+                t('acct.owned', 'Owned')
+              ) : included ? (
+                t('acct.included', 'Included')
+              ) : isCurrent ? (
+                t('acct.renew', 'Renew')
+              ) : upgrade ? (
+                <>
+                  <ArrowUp /> {t('acct.upgrade', 'Upgrade')}
+                </>
+              ) : current ? (
+                t('acct.extend', 'Extend')
+              ) : (
+                t('acct.buy', 'Buy')
+              )}
             </Button>
           </div>
         )
