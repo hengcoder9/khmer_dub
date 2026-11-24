@@ -304,7 +304,9 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
   ctx.progress(1, `Rendering ${n} clip${n === 1 ? '' : 's'} (${enc[1]})`)
   const inArgs = ['-y', '-i', p.videoPath]
   if (hasAudio) inArgs.push('-i', audioIn)
-  if (wm) inArgs.push(...((wm.animation ?? 'none') === 'none' ? [] : ['-loop', '1', '-framerate', String(Math.round(p.fps && p.fps > 0 ? p.fps : 30))]), '-i', wm.path)
+  // always loop the logo: a single still frame + overlay shortest=1 would end the VIDEO after its first frame
+  // (the whole export froze on one picture, and "split into episodes" then had no keyframe to cut at)
+  if (wm) inArgs.push('-loop', '1', '-framerate', String(Math.round(p.fps && p.fps > 0 ? p.fps : 30)), '-i', wm.path)
   const build = (e: string[]) => [
     ...inArgs,
     '-/filter_complex', 'graph.txt',
