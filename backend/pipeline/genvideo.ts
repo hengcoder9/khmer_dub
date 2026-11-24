@@ -65,7 +65,7 @@ export function omniError(status: number, body: unknown): string {
 }
 
 /** HTTPS JSON call without client timeouts (a synchronous video generation can take minutes). */
-function httpJson(method: 'GET' | 'POST', url: string, key: string, body: unknown, signal: AbortSignal): Promise<{ status: number; json: unknown; text: string }> {
+export function httpJson(method: 'GET' | 'POST', url: string, key: string, body: unknown, signal: AbortSignal): Promise<{ status: number; json: unknown; text: string }> {
   return new Promise((resolve, reject) => {
     const data = body === undefined ? undefined : Buffer.from(JSON.stringify(body))
     const req = request(

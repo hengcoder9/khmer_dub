@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Clapperboard, Copy, Download, Film, Layers, Loader2, Play, Rocket, Sparkles, Wand2 } from 'lucide-react'
+import { Clapperboard, Copy, Download, Film, ImageIcon, Layers, Loader2, Play, Rocket, Sparkles, Wand2 } from 'lucide-react'
 import type { Aspect, Episode } from '@shared/types'
 import { totalDuration } from '@shared/ranges'
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,7 @@ import { useProject } from '@/store/project'
 import { playerApi } from '@/store/ui'
 import { exportCreatorItems, generateCreatorVideos, notify, planCreator, type CreatorItem, type CreatorMode } from '@/lib/pipeline'
 import { cn, formatTime } from '@/lib/utils'
+import { ThumbnailMaker, type ThumbTarget } from './ThumbnailMaker'
 
 const fmt = (s: number) => formatTime(s).slice(s >= 3600 ? 0 : 3, 8)
 const DEFAULT_SEC: Record<CreatorMode, number> = { shorts: 45, trailer: 60, recap: 90 }
@@ -24,6 +25,9 @@ export function AiCreator({ ep }: { ep: Episode }) {
   const readyEps = useMemo(() => (episodes ?? []).filter((e) => e.videoPath && e.segments.length).map((e) => e.id), [episodes])
   const [showHook, setShowHook] = useState(true)
   const [mode, setMode] = useState<CreatorMode>('shorts')
+  // the Thumbnail tab (and which short it is for)
+  const [thumbTab, setThumbTab] = useState(false)
+  const [thumbFor, setThumbFor] = useState<ThumbTarget | null>(null)
   const [count, setCount] = useState(5)
   const [seconds, setSeconds] = useState(DEFAULT_SEC.shorts)
   const [aspect, setAspect] = useState<Aspect>('9:16')
@@ -33,6 +37,9 @@ export function AiCreator({ ep }: { ep: Episode }) {
   const [progress, setProgress] = useState('')
 
   const pickMode = (m: CreatorMode) => {
+    setThumbTab(false)
+    // back from the Thumbnail tab to the same mode: keep the AI picks
+    if (m === mode) return
     setMode(m)
     setSeconds(DEFAULT_SEC[m])
     setAspect(m === 'shorts' ? '9:16' : 'source')
@@ -104,16 +111,24 @@ export function AiCreator({ ep }: { ep: Episode }) {
       </div>
       <div className="flex flex-col gap-3 p-3">
         <div className="flex flex-wrap gap-1">
-          <Toggle on={mode === 'shorts'} onClick={() => pickMode('shorts')}>
+          <Toggle on={!thumbTab && mode === 'shorts'} onClick={() => pickMode('shorts')}>
             <Sparkles /> {t('creator.shorts', 'Shorts')}
           </Toggle>
-          <Toggle on={mode === 'trailer'} onClick={() => pickMode('trailer')}>
+          <Toggle on={!thumbTab && mode === 'trailer'} onClick={() => pickMode('trailer')}>
             <Clapperboard /> {t('creator.trailer', 'Trailer')}
           </Toggle>
-          <Toggle on={mode === 'recap'} onClick={() => pickMode('recap')}>
+          <Toggle on={!thumbTab && mode === 'recap'} onClick={() => pickMode('recap')}>
             <Film /> {t('creator.recap', 'Recap')}
           </Toggle>
+          <Toggle on={thumbTab} onClick={() => (setThumbTab(true), setThumbFor(null))}>
+            <ImageIcon /> {t('creator.thumbnail', 'Thumbnail')}
+          </Toggle>
         </div>
+
+        {thumbTab ? (
+          <ThumbnailMaker ep={ep} target={thumbFor} onClearTarget={() => setThumbFor(null)} />
+        ) : (
+        <>
 
         <div className="grid grid-cols-3 gap-2">
           {mode === 'shorts' && (
@@ -184,6 +199,18 @@ export function AiCreator({ ep }: { ep: Episode }) {
                       size="icon"
                       variant="ghost"
                       className="size-7"
+                      title={t('creator.makeThumb', 'Make a thumbnail for this video')}
+                      onClick={() => {
+                        setThumbFor({ label: `#${i + 1} ${r.title}`, title: r.hook || r.title, keep: r.keep, aspect: aspect === '9:16' ? '9:16' : '16:9' })
+                        setThumbTab(true)
+                      }}
+                    >
+                      <ImageIcon className="size-3.5" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-7"
                       title={t('creator.copy', 'Copy title, description & hashtags')}
                       onClick={() => {
                         void navigator.clipboard.writeText([r.title, '', r.description, '', r.hashtags.join(' ')].join('\n'))
@@ -221,6 +248,8 @@ export function AiCreator({ ep }: { ep: Episode }) {
               </span>
             </div>
           </div>
+        )}
+        </>
         )}
       </div>
     </section>

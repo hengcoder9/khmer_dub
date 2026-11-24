@@ -217,3 +217,59 @@ export async function videoPrompt(req: { provider: Provider; model: string; idea
   })
   return { prompt: out.trim().replace(/^["“]+|["”]+$/g, '') }
 }
+
+export interface ThumbPlan {
+  /** short punchy title for the picture, in the target language */
+  title: string
+  /** source seconds of the most visual, emotional moments (faces!) */
+  moments: number[]
+  /** English description of the picture for the image model */
+  scene: string
+}
+
+/** AI Thumbnail: the title and the moments to build the picture from. Times are SOURCE seconds. */
+export async function thumbPlan(req: {
+  provider: Provider
+  model: string
+  lines: CreatorLine[]
+  durationSec: number
+  metaLang: string
+  series?: string
+  episode?: string
+  note?: string
+}): Promise<ThumbPlan> {
+  const spread = [0.2, 0.4, 0.6, 0.8].map((f) => r2(f * req.durationSec))
+  if (!req.lines.length) return { title: req.series ?? '', moments: spread, scene: '' }
+  const lines = req.lines.length > 400 ? req.lines.filter((_, i) => i % Math.ceil(req.lines.length / 400) === 0) : req.lines
+  const system = [
+    'You design click-worthy YouTube / TikTok thumbnails for drama videos, working from a timestamped transcript.',
+    `"title": the text printed big on the thumbnail, in ${langName(req.metaLang)}: 2–6 words, a strong emotional hook or question, no hashtags, no emojis, no episode number. Do not spoil the ending.`,
+    '"moments": 4 source times (seconds, inside a line\'s start–end) where the picture is most dramatic and shows faces with strong emotion (confrontation, shock, tears, a kiss, a fight). Spread them over the video. Best first.',
+    '"scene": ONE English sentence describing the ideal thumbnail picture (who, what emotion, what action, setting), for an image AI. No names of real people.',
+    'Return JSON: { "title", "moments": [numbers], "scene" }.'
+  ].join('\n')
+  const user = [
+    req.series ? `Series: ${req.series}${req.episode ? `, episode ${req.episode}` : ''}` : '',
+    `Video duration: ${r2(req.durationSec)} s.`,
+    req.note ? `Extra instruction: ${req.note}` : '',
+    `Transcript:\n${transcriptText(lines)}`
+  ]
+    .filter(Boolean)
+    .join('\n')
+  const r = await llmJson<Partial<{ title: string; moments: unknown[]; scene: string }>>({
+    provider: req.provider,
+    model: req.model,
+    system,
+    parts: [{ text: user }],
+    schema:
+      req.provider === 'gemini'
+        ? { type: 'OBJECT', properties: { title: { type: 'STRING' }, moments: { type: 'ARRAY', items: { type: 'NUMBER' } }, scene: { type: 'STRING' } }, required: ['title', 'moments', 'scene'] }
+        : undefined,
+    temperature: 0.6
+  })
+  const moments = (Array.isArray(r.moments) ? r.moments : [])
+    .map(Number)
+    .filter((t) => Number.isFinite(t) && t >= 0 && t <= req.durationSec)
+    .slice(0, 6)
+  return { title: String(r.title ?? '').trim(), moments: moments.length ? moments : spread, scene: String(r.scene ?? '').trim() }
+}

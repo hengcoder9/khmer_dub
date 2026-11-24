@@ -1285,3 +1285,68 @@ export async function renderStoryVideo(o: {
   })
   return r.files
 }
+
+// ───────── AI Thumbnail ─────────
+
+export type ThumbMode = 'ai' | 'frame'
+export interface ThumbOptions {
+  mode: ThumbMode
+  aspect: '16:9' | '9:16'
+  count: number
+  title: string
+  tag?: string
+  color?: string
+  /** extra wish for the picture */
+  note?: string
+  /** only these source ranges (a short / trailer); default = the whole episode */
+  keep?: Array<{ start: number; end: number }>
+  /** reuse a plan (moments + scene) instead of asking the AI again */
+  plan?: { moments: number[]; scene: string }
+}
+
+/** AI title + the strongest moments (inside `keep` when given). */
+export async function planThumbnail(epId: string, o: { note?: string; keep?: Array<{ start: number; end: number }> } = {}): Promise<{ title: string; moments: number[]; scene: string }> {
+  const e = ep(epId)
+  const p = P().project!
+  const inside = (t: number) => !o.keep?.length || o.keep.some((k) => t >= k.start && t <= k.end)
+  const lines = creatorLines(e).filter((l) => inside((l.start + l.end) / 2))
+  const r = await post<{ title: string; moments: number[]; scene: string }>('/ai/thumb-plan', {
+    ...aiModel(),
+    lines,
+    durationSec: e.durationSec,
+    metaLang: p.settings.targetLang,
+    series: p.name,
+    episode: e.label,
+    note: o.note?.trim() || undefined
+  })
+  // keep the moments inside the chosen ranges (a short's thumbnail must show the short)
+  const moments = r.moments.filter(inside)
+  return { ...r, moments: moments.length ? moments : (o.keep ?? []).map((k) => (k.start + k.end) / 2).slice(0, 4) }
+}
+
+/** Make thumbnails for an episode (or one of its shorts); saved in exports\<episode>\thumbnails. */
+export async function makeThumbnails(epId: string, o: ThumbOptions): Promise<{ files: string[]; clean: string[]; plan: { moments: number[]; scene: string } }> {
+  const e = ep(epId)
+  const p = P().project!
+  if (!e.videoPath) throw new Error(`${e.label} has no video yet`)
+  const plan = o.plan ?? (e.segments.length ? await planThumbnail(epId, { note: o.note, keep: o.keep }) : { title: '', moments: [], scene: '' })
+  const dir = P().dir
+  const root = dir ? `${dir}\exports` : `${await projectsRoot()}\exports`
+  const r = await runJob<{ files: string[]; clean: string[] }>('thumbnail', {
+    videoPath: e.videoPath,
+    durationSec: e.durationSec,
+    times: plan.moments,
+    mode: o.mode,
+    aspect: o.aspect,
+    title: o.title,
+    tag: o.tag,
+    color: o.color,
+    font: p.settings.captions?.font,
+    scene: plan.scene,
+    note: o.note?.trim() || undefined,
+    count: o.count,
+    outDir: `${root}\${e.label}\thumbnails`,
+    name: `${p.name} ${e.label} thumbnail`
+  })
+  return { ...r, plan: { moments: plan.moments, scene: plan.scene } }
+}

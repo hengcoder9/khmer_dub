@@ -974,3 +974,25 @@ acct.activeForever	គម្រោងរបស់អ្នក · មិនផុ
 acct.renew	បន្តថ្មី
 acct.upgrade	ដំឡើង
 acct.included	មានរួចក្នុងគម្រោង
+creator.thumbnail	រូបក្រប
+creator.makeThumb	បង្កើតរូបក្របសម្រាប់វីដេអូនេះ
+thumb.done	បានរក្សាទុករូបក្រប {{n}}
+thumb.for	រូបក្របសម្រាប់
+thumb.wholeEp	ប្រើភាគទាំងមូល
+thumb.ai	រូបភាព AI (Gemini)
+thumb.aiHint	Gemini គូរពេលវេលាល្អបំផុតឡើងវិញជាផូស្ទ័រ (ត្រូវការសោ Gemini ដែលបើកការបង់ប្រាក់)
+thumb.frame	រូបពីវីដេអូ (ឥតគិតថ្លៃ)
+thumb.frameHint	ប្រើពេលវេលាល្អបំផុតពីវីដេអូផ្ទាល់ — ឥតគិតថ្លៃ
+thumb.count	រូបភាព {{n}}
+thumb.color	ពណ៌ចំណងជើង
+thumb.titlePh	ចំណងជើងលើរូបភាព (ទុកទទេ = AI សរសេរឱ្យ)
+thumb.tagPh	EP 01
+thumb.tag	ស្លាកតូចនៅជ្រុង
+thumb.write	សរសេរចំណងជើង
+thumb.writeHint	AI អានរឿង ហើយសរសេរចំណងជើងទាក់ទាញ
+thumb.notePh	ស្រេចចិត្ត៖ ចង់បង្ហាញអ្វី ឧ. «ឈុតទះកំផ្លៀង» ឬ «គូស្នេហ៍យំក្នុងភ្លៀង»
+thumb.make	បង្កើតរូបក្រប
+thumb.aiNote	ម៉ូដែលរូបភាព Gemini · ប្រហែល $0.04–0.15 ក្នុងមួយរូប លើសោបង់ប្រាក់
+thumb.frameNote	ឥតគិតថ្លៃ · ដំណើរការដោយគ្មានអ៊ីនធឺណិត
+thumb.open	បើក
+jobGroup.thumbnail	រូបក្រប AI
