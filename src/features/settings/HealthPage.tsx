@@ -100,7 +100,7 @@ export function HealthPage() {
               <StatusIcon state={state} />
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-medium">{t(`health.items.${d.id}`, { defaultValue: d.label })}</div>
-                {detail && <div className="truncate text-xs text-muted-foreground" title={detail}>{detail}</div>}
+                {detail && <div className="whitespace-pre-wrap break-words text-xs text-muted-foreground" title={detail}>{detail}</div>}
               </div>
               {state && state !== 'running' && state.ms > 0 && (
                 <span className="font-mono text-[11px] text-muted-foreground">{state.ms} ms</span>

@@ -34,10 +34,29 @@ export function setLlmConfig(c: { codecraftBaseUrl?: string; claudeWorkspaceId?:
 const claudeClient = (key: string, timeout: number) =>
   new Anthropic({ apiKey: key, maxRetries: 0, timeout, ...(claudeWorkspace ? { defaultHeaders: { 'anthropic-workspace-id': claudeWorkspace } } : {}) })
 /** Plain-language hint for Claude's "key not scoped to a workspace" error. */
-export function claudeHint(msg: string): string {
-  return /not scoped to a workspace|anthropic-workspace-id/i.test(msg)
-    ? `${msg}\nYour Claude key belongs to the whole organisation. Either paste a Workspace ID in Settings → API Keys → Claude, or create a new key inside a workspace in the Claude Console.`
-    : msg
+/** '400 {"type":"error","error":{"message":"…"}}' (SDK errors) → '400: …' */
+export function plainApiError(msg: string): string {
+  const m = /^([\s\S]*?)(\d{3})\s+(\{[\s\S]*\})\s*$/.exec(msg.trim())
+  if (!m) return msg
+  try {
+    const j = JSON.parse(m[3])
+    const inner = j.error?.message ?? j.message
+    // "Claude 400: 400 {…}" → "Claude 400: …"
+    return inner ? (m[1].includes(m[2]) ? `${m[1]}${inner}` : `${m[1]}${m[2]}: ${inner}`) : msg
+  } catch {
+    return msg
+  }
+}
+
+/** What to do about a Claude error — the fix first (the health list shows one line). */
+export function claudeHint(raw: string): string {
+  const msg = plainApiError(raw)
+  if (/not scoped to a workspace|anthropic-workspace-id/i.test(msg))
+    return `Claude key belongs to the whole organisation — paste a Workspace ID in Settings → API Keys → Claude, or create the key inside a workspace in the Claude Console. (${msg})`
+  if (/invalid x-api-key|authentication_error|401/i.test(msg)) return `Claude key is wrong or was deleted — remove it and paste a new key from the Claude Console. (${msg})`
+  if (/credit balance|billing|purchase credits/i.test(msg)) return `Claude account has no credit — add credit in the Claude Console → Billing. (${msg})`
+  if (/disabled|revoked|no longer/i.test(msg)) return `Claude key is disabled — make a new key in the Claude Console. (${msg})`
+  return msg
 }
 /** "https://x.com/v1/" or ".../v1/chat/completions" → "https://x.com/v1" (we append /chat/completions ourselves). */
 export function normalizeBaseUrl(u: string): string {

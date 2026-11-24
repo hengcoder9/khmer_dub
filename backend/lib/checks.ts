@@ -5,7 +5,7 @@ import { run, runFfmpeg } from './ffmpeg'
 import { binPath, pythonPath, userDataDir } from './paths'
 import { keyPool } from './keys'
 import { edgeSynthesize } from './edgeTts'
-import { testKey } from './llm'
+import { plainApiError, testKey } from './llm'
 import { cudaInfo, engineStatus, hasNvidia } from '../pipeline/pysetup'
 
 type Outcome = { status: CheckStatus; detail: string }
@@ -94,7 +94,13 @@ async function apiKeysCheck(): Promise<Outcome> {
   const res = await Promise.all(all.map((k) => testKey(k.provider, k.key)))
   const ok = res.filter((r) => r.ok).length
   if (ok === all.length) return { status: 'ok', detail: `${ok}/${all.length} keys valid` }
-  return { status: ok ? 'warn' : 'fail', detail: `${ok}/${all.length} keys valid — ${res.find((r) => !r.ok)?.detail ?? ''}` }
+  const NAME = { gemini: 'Gemini', openrouter: 'OpenRouter', claude: 'Claude', codecraft: 'CodeCraft' } as const
+  const mask = (k: string) => (k.length <= 10 ? '••••' : `${k.slice(0, 4)}…${k.slice(-4)}`)
+  const bad = all
+    .map((k, i) => ({ k, r: res[i] }))
+    .filter((x) => !x.r.ok)
+    .map((x) => `${NAME[x.k.provider]} key ${mask(x.k.key)}: ${plainApiError(x.r.detail)}`)
+  return { status: ok ? 'warn' : 'fail', detail: `${ok}/${all.length} keys valid — ${bad.join(' · ')}` }
 }
 
 /** yt-dlp powers Import Link for video pages; optional (direct / Drive / Dropbox links work without it). */
