@@ -472,12 +472,18 @@ try {
             ];
             if (($b['anajakpay_secret'] ?? '') === '') unset($b['anajakpay_secret']);
             // sign-in methods (secrets are write-only and stored encrypted; empty = keep)
+            // people paste the console's label with the value ("Client secret GOCSPX-…"): keep only the value itself
+            $pick = fn(string $v, string $re) => preg_match($re, $v, $m) ? $m[0] : trim($v);
             if (array_key_exists('google_client_id', $b)) {
-                $v = trim((string)$b['google_client_id']);
+                $v = $pick((string)$b['google_client_id'], '/[\w.-]+\.apps\.googleusercontent\.com/');
                 if ($v !== '' && !preg_match('/^[\w.-]+\.apps\.googleusercontent\.com$/', $v)) fail('Google client ID ends with .apps.googleusercontent.com');
                 set_setting('google_client_id', $v);
             }
-            if (trim((string)($b['google_client_secret'] ?? '')) !== '') set_setting('google_client_secret', key_encrypt(trim((string)$b['google_client_secret'])));
+            if (trim((string)($b['google_client_secret'] ?? '')) !== '') {
+                $v = $pick((string)$b['google_client_secret'], '/GOCSPX-[\w-]+/');
+                if (preg_match('/\s/', $v) || strlen($v) < 20 || strlen($v) > 100) fail('Google client secret looks wrong — paste only the secret (it starts with GOCSPX-)');
+                set_setting('google_client_secret', key_encrypt($v));
+            }
             if (!empty($b['google_clear'])) {
                 set_setting('google_client_id', '');
                 set_setting('google_client_secret', '');
@@ -488,7 +494,7 @@ try {
                 set_setting('telegram_bot_username', $v);
             }
             if (trim((string)($b['telegram_bot_token'] ?? '')) !== '') {
-                $v = trim((string)$b['telegram_bot_token']);
+                $v = $pick((string)$b['telegram_bot_token'], '/\d{5,}:[\w-]{30,}/');
                 if (!preg_match('/^\d+:[\w-]{30,}$/', $v)) fail('Telegram bot token looks wrong (from @BotFather, like 123456:ABC…)');
                 set_setting('telegram_bot_token', key_encrypt($v));
             }
