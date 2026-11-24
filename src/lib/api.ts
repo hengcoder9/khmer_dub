@@ -6,6 +6,11 @@ let info: Promise<BackendInfo> | null = null
 
 export const backend = () => (info ??= window.api.getBackend())
 
+/** Forget the cached port/token (the backend restarted on a new port); the next call asks the main process again. */
+export const resetBackend = () => {
+  info = null
+}
+
 const base = (b: BackendInfo) => `http://127.0.0.1:${b.port}`
 
 /** JSON call to the local backend. Retries once with fresh port/token if the backend restarted. */

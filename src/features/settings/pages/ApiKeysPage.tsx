@@ -6,7 +6,7 @@ import type { KeyEntry } from '@shared/types'
 import { Button } from '@/components/ui/button'
 import { Field, Input, Select } from '@/components/ui/controls'
 import { useSettings } from '@/store/settings'
-import { useJobs } from '@/store/jobs'
+import { refreshKeyStats, useJobs } from '@/store/jobs'
 import { post } from '@/lib/api'
 import { codecraftDashboard } from '@shared/urls'
 
@@ -108,6 +108,13 @@ export function ApiKeysPage() {
   const [keys, setKeys] = useState<KeyEntry[]>([])
   const s = useSettings()
   const pool = useJobs((st) => st.keys)
+  // the count straight from the backend: on open, whenever the list changes (main pushes keys right after), and every 5 s
+  useEffect(() => {
+    const t1 = setTimeout(refreshKeyStats, 400)
+    const iv = setInterval(refreshKeyStats, 5000)
+    void refreshKeyStats()
+    return () => (clearTimeout(t1), clearInterval(iv))
+  }, [keys])
   const [models, setModels] = useState<string[]>([])
   useEffect(() => {
     window.api.keys.list().then(setKeys)

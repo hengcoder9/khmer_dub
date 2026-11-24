@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { JobInfo, ServerEvent } from '@shared/types'
-import { api, backend } from '@/lib/api'
+import { api, backend, resetBackend } from '@/lib/api'
 import { hasAccess, useAccount } from './account'
 import { useUi } from './ui'
 
@@ -68,8 +68,17 @@ export async function connectEvents() {
   }
   ws.onclose = () => {
     useJobs.setState({ connected: false })
+    // the backend may have restarted on a new port: ask for fresh port/token, or we would retry the dead one forever
+    // (the key pool showed "0/0" and job progress froze)
+    resetBackend()
     setTimeout(() => connectEvents().catch(() => {}), 1500)
   }
+}
+
+/** Ask the backend for the Gemini key pool now (the live event can be missed). */
+export async function refreshKeyStats() {
+  const s = await api<{ gemini: { total: number; ready: number } }>('/keys/stats').catch(() => null)
+  if (s) useJobs.setState({ keys: s.gemini })
 }
 
 export class JobError extends Error {
