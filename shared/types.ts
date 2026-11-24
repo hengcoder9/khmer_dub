@@ -317,6 +317,24 @@ export interface ProjectSettings {
   burnSubtitles: boolean
   /** your logo / channel badge on exported videos */
   watermark?: Watermark
+  /** hide the source video's own burned-in subtitles under a blur or a bar */
+  subCover?: SubCover
+}
+
+/** Area over the old (burned-in) subtitles, as fractions of the SOURCE frame, blurred or covered in the export. */
+export interface SubCover {
+  enabled: boolean
+  x: number
+  y: number
+  w: number
+  h: number
+  /** blur = soft blur (keeps the picture's colours); box = solid bar */
+  mode: 'blur' | 'box'
+  /** blur strength 1 (light) … 3 (strong) */
+  strength?: number
+  /** bar colour (#RRGGBB) and opacity, for mode 'box' */
+  color?: string
+  opacity?: number
 }
 
 export type WatermarkAnimation = 'none' | 'pulse' | 'corners' | 'scroll' | 'float'

@@ -16,6 +16,7 @@ import { UpdateModal } from '@/features/update/UpdateModal'
 import { LinkDialog, SourceDialog } from '@/features/project/ImportTools'
 import { WatermarkDialog } from '@/features/project/WatermarkDialog'
 import { ReadScreenDialog } from '@/features/project/ReadScreenDialog'
+import { SubCoverDialog } from '@/features/project/SubCoverDialog'
 import { JobDock } from '@/components/JobDock'
 import { GatewayDialog } from '@/features/gateway/GatewayDialog'
 import { AccountDialog } from '@/features/account/AccountDialog'
@@ -116,6 +117,7 @@ export function App() {
       {dialog === 'source' && <SourceDialog onClose={() => setUi({ dialog: null })} />}
       {dialog === 'watermark' && <WatermarkDialog onClose={() => setUi({ dialog: null })} />}
       {dialog === 'readscreen' && <ReadScreenDialog onClose={() => setUi({ dialog: null })} />}
+      {dialog === 'subcover' && <SubCoverDialog onClose={() => setUi({ dialog: null })} />}
       {dialog === 'gateway' && <GatewayDialog onClose={() => setUi({ dialog: null })} />}
       {dialog === 'account' && <AccountDialog onClose={() => setUi({ dialog: null })} />}
       <UpdateModal />

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { AudioWaveform, Bot, Captions, FileDown, FileUp, Film, FolderInput, Link, Loader2, Music, ShieldCheck, Stamp, Video, VolumeX, Wand2, type LucideIcon } from 'lucide-react'
+import { AudioWaveform, Bot, Captions, EyeOff, FileDown, FileUp, Film, FolderInput, Link, Loader2, Music, ShieldCheck, Stamp, Video, VolumeX, Wand2, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { mutate, useActiveEpisode, useProject } from '@/store/project'
 import { useUi } from '@/store/ui'
@@ -26,6 +26,7 @@ export function ToolButtons() {
   const burn = useProject((s) => s.project?.settings.burnSubtitles ?? false)
   const hasSource = useProject((s) => !!s.project?.source)
   const hasWm = useProject((s) => !!s.project?.settings.watermark)
+  const hasCover = useProject((s) => !!s.project?.settings.subCover?.enabled)
   const setUi = useUi((s) => s.set)
   const [busy, setBusy] = useState<string | null>(null)
 
@@ -87,6 +88,7 @@ export function ToolButtons() {
     },
     { key: 'importFolder', icon: FolderInput, label: t('tools.importFolder', 'Import Folder'), run: () => importFolder() },
     { key: 'importLink', icon: Link, label: t('tools.importLink', 'Import Link'), run: () => setUi({ dialog: 'link' }) },
+    { key: 'subCover', icon: EyeOff, label: t('tools.subCover', 'Hide Old Subs'), active: hasCover, needsVideo: true, run: () => setUi({ dialog: 'subcover' }) },
     { key: 'watermark', icon: Stamp, label: t('tools.watermark', 'Watermark'), active: hasWm, run: () => setUi({ dialog: 'watermark' }) },
     { key: 'source', icon: ShieldCheck, label: t('tools.source', 'Source & licence'), active: hasSource, run: () => setUi({ dialog: 'source' }) }
   ]

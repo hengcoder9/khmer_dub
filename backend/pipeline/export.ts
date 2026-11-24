@@ -1,10 +1,11 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Aspect, CaptionStyle, Clip, Watermark } from '../../shared/types'
+import type { Aspect, CaptionStyle, Clip, SubCover, Watermark } from '../../shared/types'
 import { serializeSrt, serializeVtt, type Cue } from '../../shared/srt'
 import { clipSpeed, layoutClips, mapCuesToOutput, outputDuration, outputSize, transitionDur } from '../../shared/ranges'
 import { toAss, withHook } from '../../shared/captions'
 import { hasWmText, withWatermarkText, wmLogoPulse, wmOverlayXY } from '../../shared/watermark'
+import { coverGraph, coverOn } from '../../shared/subcover'
 import { runFfmpeg, runFfprobe, probeMedia } from '../lib/ffmpeg'
 import { cuesForPart, partName, partRanges, planParts } from '../../shared/split'
 import { metaText, type UploadMeta } from './aicreate'
@@ -46,6 +47,8 @@ export interface ExportPayload {
   meta?: UploadMeta
   /** AI Creator: hook text shown big at the top for the first seconds (burned in, even without captions) */
   hook?: string
+  /** blur / cover the source's own burned-in subtitles */
+  subCover?: SubCover
 }
 
 /** ffmpeg overlay position for a watermark corner (m = margin in px). */
@@ -64,13 +67,13 @@ function atempo(speed: number): string[] {
 }
 
 /** Per-clip video + audio filters (trim, speed, color, volume) and the joins between clips (concat or xfade). */
-export function clipGraph(clips: Clip[], hasAudio: boolean, fps: number): string[] {
+export function clipGraph(clips: Clip[], hasAudio: boolean, fps: number, src = '0:V'): string[] {
   const g: string[] = []
   const n = clips.length
   const placed = layoutClips(clips)
   const anyTransition = clips.some((_, i) => transitionDur(clips, i) > 0)
   const norm = anyTransition ? `,fps=${fps},settb=AVTB,format=yuv420p,setsar=1` : ''
-  g.push(`[0:V]split=${n}${clips.map((_, i) => `[sv${i}]`).join('')}`)
+  g.push(`[${src}]split=${n}${clips.map((_, i) => `[sv${i}]`).join('')}`)
   clips.forEach((c, i) => {
     const sp = clipSpeed(c)
     const col = c.color
@@ -189,7 +192,8 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
   const wm = p.watermark?.path && existsSync(p.watermark.path) ? p.watermark : null
   const wmText = hasWmText(p.watermark) ? p.watermark! : null
   const hook = p.hook?.trim() || ''
-  let reencode = editOn || p.burn || resized || !!wm || !!hook || !!wmText
+  const cover = coverOn(p.subCover) ? p.subCover : null
+  let reencode = editOn || p.burn || resized || !!wm || !!hook || !!wmText || !!cover
 
   if (!reencode) {
     ctx.progress(2, 'Muxing (video copy)')
@@ -239,11 +243,17 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
 
   const g: string[] = []
   const n = clips.length
+  // old burned-in subtitles: blurred on the source frames, before any cut / speed / reframe
+  let src = '0:V'
+  if (cover) {
+    g.push(...coverGraph(cover, '0:V', 'vsrc', p.height))
+    src = 'vsrc'
+  }
   if (editOn && n > 0) {
-    g.push(...clipGraph(clips, hasAudio, p.fps && p.fps > 0 ? p.fps : 30))
+    g.push(...clipGraph(clips, hasAudio, p.fps && p.fps > 0 ? p.fps : 30, src))
     if (!hasAudio) g.push(`anullsrc=channel_layout=stereo:sample_rate=44100,atrim=0:${outDur.toFixed(3)}[acat]`)
   } else {
-    g.push('[0:V]null[vcat]')
+    g.push(`[${src}]null[vcat]`)
     if (hasAudio) {
       g.push('[1:a]apad[acat]') // padded; output length is fixed with -t below
     } else {

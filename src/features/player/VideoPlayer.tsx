@@ -10,6 +10,7 @@ import { cn, formatTime, isTyping } from '@/lib/utils'
 import { clipSpeed, dubOnAt, dubSpans, effectiveClips, outputDuration, outputToSource, sourceToOutput, transitionDur } from '@shared/ranges'
 import { CaptionPreview } from './CaptionPreview'
 import { WatermarkLayer } from '@/features/project/WatermarkLayer'
+import { SubCoverLayer } from '@/features/project/SubCoverLayer'
 import { setBurnSubtitles } from './burn'
 
 const ASPECT: Record<string, number> = { '16:9': 16 / 9, '9:16': 9 / 16, '1:1': 1, '4:5': 4 / 5 }
@@ -22,6 +23,7 @@ export function VideoPlayer() {
   const muteOrig = useProject((s) => s.project?.settings.muteOriginal ?? false)
   const burn = useProject((s) => s.project?.settings.burnSubtitles ?? false)
   const wm = useProject((s) => s.project?.settings.watermark)
+  const subCover = useProject((s) => s.project?.settings.subCover)
   const [wmUrl, setWmUrl] = useState<string | null>(null)
   useEffect(() => {
     let alive = true
@@ -398,6 +400,10 @@ export function VideoPlayer() {
               onLoadedMetadata={(e) => Number.isFinite(e.currentTarget.duration) && setDuration(e.currentTarget.duration)}
               onError={() => setUnsupported(true)}
             />
+            {/* old burned-in subtitles blurred / covered, like the export */}
+            {subCover?.enabled && (
+              <SubCoverLayer cover={subCover} srcAspect={srcAspect} boxAspect={aspect ?? srcAspect} fit={aspect && ep?.edit.fitMode === 'crop' ? 'cover' : 'contain'} />
+            )}
             {/* logo and/or text watermark, animated like the export */}
             {wm && (wmUrl || wm.text?.trim()) && <WatermarkLayer wm={wm} imageUrl={wmUrl} />}
             {dip > 0 && <div className="pointer-events-none absolute inset-0 bg-black" style={{ opacity: dip }} />}
