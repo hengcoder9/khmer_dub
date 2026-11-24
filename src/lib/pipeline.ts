@@ -647,10 +647,14 @@ export async function exportEpisode(opts: ExportOptions, epId?: string, extra?: 
   }
   let meta = extra?.meta
   if (!meta && opts.aiMeta) {
-    meta = await episodeMeta(e.id).catch((err) => {
-      toast.warning('AI title / hashtags skipped: ' + (err as Error).message)
-      return undefined
-    })
+    const tid = toast.loading('AI is writing the title, description & hashtags…')
+    meta = await episodeMeta(e.id)
+      .catch((err) => {
+        // stays until closed: the export runs on for minutes and a short toast was missed ("the .txt doesn't work")
+        toast.error('No .txt: the AI could not write the title / hashtags — ' + (err as Error).message, { duration: Infinity, closeButton: true })
+        return undefined
+      })
+      .finally(() => toast.dismiss(tid))
   }
   const r = await runJob<{ files: string[] }>(
     'export',
@@ -744,7 +748,23 @@ export async function episodeMeta(epId: string): Promise<UploadMeta> {
   const e = ep(epId)
   const p = P().project!
   if (!e.segments.length) throw new Error(`${e.label} has no lines yet`)
-  return post<UploadMeta>('/ai/meta', { ...aiModel(), lines: creatorLines(e), metaLang: p.settings.targetLang, series: p.name, episode: e.label })
+  const body = { lines: creatorLines(e), metaLang: p.settings.targetLang, series: p.name, episode: e.label }
+  // the project's AI first, then every other provider that has a key: one failing model must not cost the .txt
+  const stats = await api<Record<'gemini' | 'openrouter' | 'claude' | 'codecraft', { total: number }>>('/keys/stats').catch(() => null)
+  const first = aiModel()
+  const order = [first, ...(['gemini', 'claude', 'openrouter', 'codecraft'] as const).filter((x) => x !== first.provider && (stats?.[x]?.total ?? 0) > 0).map((x) => llmChoice(x))]
+  const errors: string[] = []
+  for (const m of order) {
+    try {
+      const r = await post<UploadMeta>('/ai/meta', { ...m, ...body })
+      if (!r.title.trim()) throw new Error('empty answer')
+      if (errors.length) toast.info(`AI title written with ${m.provider} (${m.model}) — ${errors[0]}`)
+      return r
+    } catch (err) {
+      errors.push(`${m.provider} ${m.model}: ${(err as Error).message}`)
+    }
+  }
+  throw new Error(errors.join(' · '))
 }
 
 export interface EditPlan {
