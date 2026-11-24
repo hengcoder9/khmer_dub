@@ -94,13 +94,15 @@ function ticket_finish(string $state, ?int $userId, ?string $error = null): void
 }
 
 /** Small branded page in the browser. */
-function auth_page(string $title, string $body, bool $ok = true): never
+/** $ok: true = green tick, false = red cross, null = Telegram logo (the page before signing in) */
+function auth_page(string $title, string $body, ?bool $ok = true): never
 {
     header('content-type: text/html; charset=utf-8');
     header('cache-control: no-store');
     header("content-security-policy: default-src 'self'; script-src https://telegram.org 'unsafe-inline'; frame-src https://oauth.telegram.org; img-src * data:; style-src 'unsafe-inline'");
-    $icon = $ok ? '<svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-6"/></svg>'
-        : '<svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>';
+    $icon = $ok === null ? '<svg width="56" height="56" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#29A9EB"/><path fill="#fff" d="M5.4 11.8 16.9 7.4c.5-.2 1 .1.8.9l-2 9.3c-.1.6-.5.8-1 .5l-2.9-2.1-1.4 1.3c-.2.2-.3.3-.6.3l.2-2.9 5.3-4.8c.2-.2 0-.3-.3-.1l-6.6 4.1-2.8-.9c-.6-.2-.6-.6.1-.9z"/></svg>'
+        : ($ok ? '<svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-6"/></svg>'
+        : '<svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>');
     echo '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' . htmlspecialchars(strip_tags($title)) . ' · KhmerDub Studio</title>'
         . '<style>body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;background:#0f1115;color:#e5e7eb}'
         . '.c{width:min(420px,calc(100vw - 32px));padding:36px 28px;border:1px solid #262a33;border-radius:20px;background:#16181d;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4)}'
@@ -135,6 +137,8 @@ function auth_web(): never
         'Sign in with Telegram',
         '<p>Tap the button and confirm in Telegram. You will come back to the app automatically.</p>'
             . '<div class="w"><script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="' . $bot . '" data-size="large" data-radius="12" data-auth-url="' . $cb . '" data-request-access="write"></script></div>'
+            . '<p style="margin-top:14px;font-size:12px">Button says “Bot domain invalid”? The admin must send <b>/setdomain</b> to @BotFather for @' . $bot . ' with <b>' . htmlspecialchars((string)parse_url(api_base(), PHP_URL_HOST)) . '</b>.</p>',
+        null
     );
 }
 
