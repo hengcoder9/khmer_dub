@@ -1084,3 +1084,11 @@ link.desc3	បិទភ្ជាប់តំណវីដេអូដែលអ្
 link.dropboxFolder	ថត Dropbox — វីដេអូទាំងអស់ក្នុងថត តាមលំដាប់ភាគ
 link.onedrive	ឯកសារ OneDrive
 link.mega	ឯកសារ MEGA
+home.menu	ម៉ឺនុយគម្រោង
+home.open	បើក
+home.rename	ប្ដូរឈ្មោះ
+home.showFolder	បង្ហាញក្នុងថត
+home.delete	លុប
+home.renamed	បានប្ដូរឈ្មោះទៅ «{{name}}»
+home.deleted	«{{name}}» ត្រូវបានផ្លាស់ទៅធុងសំរាម
+home.deleteConfirm	លុបគម្រោង «{{name}}»?\n\nថតរបស់វា (ឃ្លា សំឡេងបញ្ចូល ការនាំចេញ) នឹងទៅធុងសំរាម (Recycle Bin) — អ្នកអាចស្ដារវាមកវិញពីទីនោះបាន។ ឯកសារវីដេអូដើមរបស់អ្នកដែលនៅក្រៅថតគម្រោង មិនត្រូវបានប៉ះពាល់ទេ។

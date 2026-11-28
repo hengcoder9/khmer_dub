@@ -1,4 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, shell, utilityProcess, type UtilityProcess } from 'electron'
+import { existsSync } from 'node:fs'
+import { join as joinPath, parse as parsePath, resolve as resolvePath } from 'node:path'
 import { join } from 'node:path'
 import { writeFileSync } from 'node:fs'
 import { randomBytes } from 'node:crypto'
@@ -143,6 +145,14 @@ ipcMain.handle('dialog:saveFile', async (_e, o: DialogOpts = {}) => {
   return r.canceled ? null : r.filePath
 })
 ipcMain.handle('shell:showInFolder', (_e, p: string) => shell.showItemInFolder(p))
+// Home → Delete: the whole project folder goes to the Recycle Bin (recoverable). Only a folder with a
+// project.json in it, never a drive root or the projects folder itself.
+ipcMain.handle('project:trash', async (_e, dir: string) => {
+  const abs = resolvePath(String(dir ?? ''))
+  if (!abs || abs === parsePath(abs).root || !existsSync(joinPath(abs, 'project.json'))) throw new Error('Not a KhmerDub project folder')
+  if (abs.toLowerCase() === resolvePath(app.getPath('documents'), 'KhmerDub Projects').toLowerCase()) throw new Error('That is the projects folder itself')
+  await shell.trashItem(abs)
+})
 // only media/subtitle outputs — never executables
 ipcMain.handle('shell:openPath', (_e, p: string) =>
   /\.(mp4|mkv|mov|wav|mp3|srt|vtt|ass)$/i.test(p) ? shell.openPath(p) : Promise.resolve('blocked file type')

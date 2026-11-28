@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
-  AudioLines, Clapperboard, Cpu, Crown, Film, FolderOpen, Home as HomeIcon, ImageIcon, Languages, LayoutGrid, Link2, Loader2, Mic2, Plus, Search, Settings, Sparkles, Wand2
+  AudioLines, Clapperboard, Cpu, Crown, Film, FolderOpen, Home as HomeIcon, ImageIcon, Languages, LayoutGrid, Link2, Loader2, Mic2, MoreHorizontal, Pencil, Play, Plus, Search, Settings, Sparkles, Trash2, Wand2
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { APP_NAME } from '@shared/types'
@@ -13,6 +13,7 @@ import { useUi, type HomeIntent } from '@/store/ui'
 import { hasAccess, useAccount } from '@/store/account'
 import { pickAndOpenProject } from '@/components/TopBar'
 import { post } from '@/lib/api'
+import { DropdownContent, DropdownItem, DropdownMenu, DropdownSeparator, DropdownTrigger } from '@/components/ui/controls'
 import { cn, formatTime } from '@/lib/utils'
 
 interface ProjectCard {
@@ -38,14 +39,42 @@ export function Home() {
   const [q, setQ] = useState('')
   const [opening, setOpening] = useState<string | null>(null)
 
-  useEffect(() => {
-    post<{ root: string; projects: ProjectCard[] }>('/projects/list', { dirs: recent.map((r) => r.dir) })
+  const load = () =>
+    post<{ root: string; projects: ProjectCard[] }>('/projects/list', { dirs: useSettings.getState().recent.map((r) => r.dir) })
       .then((r) => {
         setProjects(r.projects)
         setRoot(r.root)
       })
       .catch(() => setProjects([]))
+  useEffect(() => {
+    void load()
   }, [recent])
+
+  const rename = async (p: ProjectCard, name: string) => {
+    const n = name.trim()
+    if (!n || n === p.name) return
+    try {
+      await post('/projects/rename', { dir: p.dir, name: n })
+      const st = useSettings.getState()
+      st.set({ recent: st.recent.map((r) => (r.dir === p.dir ? { ...r, name: n } : r)) })
+      setProjects((list) => list?.map((x) => (x.dir === p.dir ? { ...x, name: n } : x)) ?? null)
+      toast.success(t('home.renamed', 'Renamed to “{{name}}”', { name: n }))
+    } catch (e) {
+      toast.error((e as Error).message)
+    }
+  }
+  const remove = async (p: ProjectCard) => {
+    if (!confirm(t('home.deleteConfirm', 'Delete the project “{{name}}”?\n\nIts folder (lines, dubbed voices, exports) goes to the Recycle Bin — you can restore it from there. Your original video files outside the project folder are not touched.', { name: p.name }))) return
+    try {
+      await window.api.trashProject(p.dir)
+      const st = useSettings.getState()
+      st.set({ recent: st.recent.filter((r) => r.dir !== p.dir) })
+      setProjects((list) => list?.filter((x) => x.dir !== p.dir) ?? null)
+      toast.success(t('home.deleted', '“{{name}}” moved to the Recycle Bin', { name: p.name }))
+    } catch (e) {
+      toast.error((e as Error).message)
+    }
+  }
 
   const open = async (dir: string) => {
     setUi({ intent: null })
@@ -175,27 +204,7 @@ export function Home() {
             ) : (
               <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-4">
                 {shown.map((p) => (
-                  <button key={p.dir} onClick={() => open(p.dir)} disabled={!!opening} className="group flex flex-col gap-1.5 text-left" title={p.dir}>
-                    <div className="relative aspect-square overflow-hidden rounded-xl border bg-muted transition group-hover:border-primary/60 group-hover:shadow-lg group-hover:shadow-primary/10">
-                      {p.thumb ? (
-                        <img src={p.thumb} className="size-full object-cover transition duration-300 group-hover:scale-105" />
-                      ) : (
-                        <div className="grid size-full place-items-center bg-gradient-to-br from-primary/20 to-transparent">
-                          <AudioLines className="size-8 text-primary/60" />
-                        </div>
-                      )}
-                      {p.episodes > 1 && <span className="absolute left-2 top-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white">{t('home.eps', '{{n}} episodes', { n: p.episodes })}</span>}
-                      {opening === p.dir && (
-                        <div className="absolute inset-0 grid place-items-center bg-black/40">
-                          <Loader2 className="size-6 animate-spin text-white" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="truncate text-sm font-medium">{p.name}</div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {dur(p.durationSec)} · {new Date(p.updatedAt).toLocaleDateString()}
-                    </div>
-                  </button>
+                  <ProjectTile key={p.dir} p={p} busy={opening === p.dir} disabled={!!opening} onOpen={() => open(p.dir)} onRename={(n) => rename(p, n)} onDelete={() => remove(p)} />
                 ))}
               </div>
             )}
@@ -245,6 +254,82 @@ function AccountCard() {
           <Crown className="size-3.5" /> {t('home.getPro', 'Get Pro')}
         </button>
       )}
+    </div>
+  )
+}
+
+function ProjectTile({ p, busy, disabled, onOpen, onRename, onDelete }: { p: ProjectCard; busy: boolean; disabled: boolean; onOpen: () => void; onRename: (name: string) => void; onDelete: () => void }) {
+  const { t } = useTranslation()
+  const [editing, setEditing] = useState(false)
+  const [name, setName] = useState(p.name)
+  const done = (save: boolean) => {
+    setEditing(false)
+    if (save) onRename(name)
+    else setName(p.name)
+  }
+  return (
+    <div className="group relative flex min-w-0 flex-col gap-1.5" title={p.dir}>
+      <button onClick={onOpen} disabled={disabled} className="relative aspect-square overflow-hidden rounded-xl border bg-muted text-left transition group-hover:border-primary/60 group-hover:shadow-lg group-hover:shadow-primary/10">
+        {p.thumb ? (
+          <img src={p.thumb} className="size-full object-cover transition duration-300 group-hover:scale-105" />
+        ) : (
+          <div className="grid size-full place-items-center bg-gradient-to-br from-primary/20 to-transparent">
+            <AudioLines className="size-8 text-primary/60" />
+          </div>
+        )}
+        {p.episodes > 1 && <span className="absolute left-2 top-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white">{t('home.eps', '{{n}} episodes', { n: p.episodes })}</span>}
+        {busy && (
+          <div className="absolute inset-0 grid place-items-center bg-black/40">
+            <Loader2 className="size-6 animate-spin text-white" />
+          </div>
+        )}
+      </button>
+      {/* ⋯ menu: open / rename / show in folder / delete */}
+      <DropdownMenu>
+        <DropdownTrigger asChild>
+          <button
+            className="absolute right-2 top-2 grid size-7 place-items-center rounded-md bg-black/55 text-white opacity-0 backdrop-blur transition hover:bg-black/75 focus:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
+            title={t('home.menu', 'Project menu')}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MoreHorizontal className="size-4" />
+          </button>
+        </DropdownTrigger>
+        <DropdownContent align="end">
+          <DropdownItem onSelect={onOpen}>
+            <Play className="size-4" /> {t('home.open', 'Open')}
+          </DropdownItem>
+          <DropdownItem onSelect={() => setTimeout(() => setEditing(true), 0)}>
+            <Pencil className="size-4" /> {t('home.rename', 'Rename')}
+          </DropdownItem>
+          <DropdownItem onSelect={() => window.api.showInFolder(`${p.dir}\\project.json`)}>
+            <FolderOpen className="size-4" /> {t('home.showFolder', 'Show in folder')}
+          </DropdownItem>
+          <DropdownSeparator />
+          <DropdownItem className="text-destructive focus:text-destructive" onSelect={onDelete}>
+            <Trash2 className="size-4" /> {t('home.delete', 'Delete')}
+          </DropdownItem>
+        </DropdownContent>
+      </DropdownMenu>
+      {editing ? (
+        <input
+          autoFocus
+          className="h-6 w-full min-w-0 rounded border border-primary bg-card px-1.5 text-sm font-medium outline-none"
+          value={name}
+          maxLength={120}
+          onChange={(e) => setName(e.target.value)}
+          onFocus={(e) => e.target.select()}
+          onKeyDown={(e) => (e.key === 'Enter' ? done(true) : e.key === 'Escape' ? done(false) : undefined)}
+          onBlur={() => done(true)}
+        />
+      ) : (
+        <button className="w-full min-w-0 truncate text-left text-sm font-medium" onDoubleClick={() => setEditing(true)} onClick={onOpen} title={p.name}>
+          {p.name}
+        </button>
+      )}
+      <div className="truncate text-[11px] text-muted-foreground">
+        {dur(p.durationSec)} · {new Date(p.updatedAt).toLocaleDateString()}
+      </div>
     </div>
   )
 }

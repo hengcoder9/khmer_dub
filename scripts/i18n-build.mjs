@@ -9,8 +9,10 @@ const out = {}
 for (const line of readFileSync(join(dir, 'km.tsv'), 'utf8').split(/\r?\n/)) {
   if (!line.trim()) continue
   const tab = line.indexOf('\t')
+  if (tab < 1) throw new Error(`km.tsv: a line without "key<TAB>text": ${line.slice(0, 60)}`)
   const key = line.slice(0, tab)
-  const value = line.slice(tab + 1)
+  // "\n" written in the file = a line break in the text (every entry stays on one line)
+  const value = line.slice(tab + 1).replace(/\\n/g, '\n')
   // nest on dots, except for shortcut keys whose last part contains punctuation
   const parts = key.startsWith('shortcuts.') ? ['shortcuts', key.slice(10)] : key.split('.')
   let o = out

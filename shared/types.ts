@@ -93,6 +93,8 @@ export interface KdApi {
   showInFolder(path: string): Promise<void>
   /** open a file with its default app (e.g. play an exported MP4) */
   openPath(path: string): Promise<string>
+  /** move a project folder (must contain project.json) to the Recycle Bin */
+  trashProject(dir: string): Promise<void>
   getAppInfo(): Promise<{ name: string; version: string; documents: string }>
   /** whole-window UI scale (1 = 100 %) */
   setZoom(factor: number): void

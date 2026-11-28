@@ -9,6 +9,7 @@ const api: KdApi = {
   saveFile: (opts) => ipcRenderer.invoke('dialog:saveFile', opts),
   showInFolder: (p) => ipcRenderer.invoke('shell:showInFolder', p),
   openPath: (p) => ipcRenderer.invoke('shell:openPath', p),
+  trashProject: (dir) => ipcRenderer.invoke('project:trash', dir),
   getAppInfo: () => ipcRenderer.invoke('app:info'),
   account: {
     state: () => ipcRenderer.invoke('account:state'),

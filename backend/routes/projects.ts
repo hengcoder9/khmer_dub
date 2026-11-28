@@ -30,6 +30,17 @@ export async function projectRoutes(app: FastifyInstance) {
    * Home screen: every project in the projects folder plus the given (recent) folders, newest first, with a
    * small thumbnail from the first episode's video. Reads project.json only — nothing is opened or changed.
    */
+  app.post<{ Body: { dir: string; name: string } }>('/projects/rename', async (req, reply) => {
+    const file = join(resolve(req.body?.dir ?? ''), 'project.json')
+    const name = String(req.body?.name ?? '').trim().slice(0, 120)
+    if (!name) return reply.code(400).send({ error: 'Name required' })
+    if (!existsSync(file)) return reply.code(404).send({ error: 'project.json not found' })
+    const p = JSON.parse(readFileSync(file, 'utf8')) as Project
+    if (!p || !Array.isArray(p.episodes)) return reply.code(400).send({ error: 'Not a KhmerDub project file' })
+    writeAtomic(file, JSON.stringify({ ...p, name }, null, 2))
+    return { ok: true, name }
+  })
+
   app.post<{ Body: { dirs?: string[] } }>('/projects/list', async (req) => {
     const dirs = new Set<string>()
     try {
