@@ -16,19 +16,43 @@ import type { RawSeg } from '../../shared/segments'
 const VISION_FALLBACK = 'gemini-3.8-flash'
 const noVision = new Set<string>()
 
-/** Like llmJson, but if the chosen Gemini model can't take images, retry once with a vision-capable model. */
-const llmJson: typeof rawLlmJson = async (o) => {
-  const model = o.model
-  if (o.provider === 'gemini' && model && noVision.has(model)) o = { ...o, model: VISION_FALLBACK }
-  try {
-    return await rawLlmJson(o)
-  } catch (e) {
-    if (o.provider === 'gemini' && o.model !== VISION_FALLBACK && /modality|not enabled|image input/i.test((e as Error).message)) {
-      noVision.add(o.model ?? '')
-      return rawLlmJson({ ...o, model: VISION_FALLBACK })
-    }
-    throw e
+/** A reader whose account can't be used right now (billing, sign-in, quota): skipped until this time. */
+const accountDown = new Map<string, number>()
+/** "CodeCraft 402: Billing verification failed", 401 / 403, quota, credit… — the account, not the request */
+export const isAccountProblem = (msg: string) => /\b(401|402|403|429)\b|billing|payment|quota|insufficient|credit|balance|unauthori[sz]ed|forbidden|api key/i.test(msg)
+
+/**
+ * The AI call for reading the screen:
+ *  • a Gemini model that can't take images → retried with a vision model;
+ *  • another reader (CodeCraft / OpenRouter) whose ACCOUNT fails (billing, key, quota) → Gemini takes over
+ *    (when there is a Gemini key), and that reader is skipped for the next 10 minutes.
+ */
+export function makeReader(geminiModel: string, log: (m: string) => void = () => {}): typeof rawLlmJson {
+  const gemini = <T,>(o: Parameters<typeof rawLlmJson>[0]) => {
+    let g = { ...o, provider: 'gemini' as const, model: o.provider === 'gemini' ? o.model : geminiModel || VISION_FALLBACK }
+    if (g.model && noVision.has(g.model)) g = { ...g, model: VISION_FALLBACK }
+    return rawLlmJson<T>(g).catch((e: Error) => {
+      if (g.model !== VISION_FALLBACK && /modality|not enabled|image input/i.test(e.message)) {
+        noVision.add(g.model ?? '')
+        return rawLlmJson<T>({ ...g, model: VISION_FALLBACK })
+      }
+      throw e
+    })
   }
+  return (async <T,>(o: Parameters<typeof rawLlmJson>[0]): Promise<T> => {
+    if (o.provider === 'gemini') return gemini<T>(o)
+    const canFallBack = keyPool.has('gemini')
+    if (canFallBack && (accountDown.get(o.provider) ?? 0) > Date.now()) return gemini<T>(o)
+    try {
+      return await rawLlmJson<T>(o)
+    } catch (e) {
+      const msg = (e as Error).message
+      if (!canFallBack || !isAccountProblem(msg)) throw e
+      accountDown.set(o.provider, Date.now() + 10 * 60_000)
+      log(`${msg.split(/\r?\n/)[0]} — reading with Gemini instead`)
+      return gemini<T>(o)
+    }
+  }) as typeof rawLlmJson
 }
 
 export interface OcrPayload {
@@ -113,6 +137,7 @@ export async function readScreen(p: OcrPayload, ctx: JobCtx): Promise<{ segments
     ctx.progress(15, `Reading ${frames.length} frames`)
     const provider = p.provider ?? 'gemini'
     const model = (provider === 'gemini' ? p.geminiModel : p.model) || p.geminiModel
+    const llmJson = makeReader(p.geminiModel, ctx.log)
     await mapLimit(batches, llmParallelism(keyPool.all(provider).length), async (batch) => {
       ctx.throwIfCanceled()
       const parts = batch.flatMap(({ f, t }) => [
@@ -192,6 +217,7 @@ export async function findSubtitleArea(p: OcrAreaPayload, ctx: JobCtx): Promise<
         'Return ONLY JSON {"found": boolean, "top": number, "bottom": number} where top/bottom are fractions 0..1 of the frame height covering all subtitle text with a little margin.'
     })
     const provider = p.provider ?? 'gemini'
+    const llmJson = makeReader(p.geminiModel, ctx.log)
     const r = await llmJson<{ found: boolean; top: number; bottom: number }>({
       provider,
       model: (provider === 'gemini' ? p.geminiModel : p.model) || p.geminiModel,
