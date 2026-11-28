@@ -12,8 +12,7 @@ vi.mock('../backend/lib/python', () => ({
   aiWorker: {
     job: vi.fn(async (kind: string, p: { images: string[] }) => {
       workerCalls.push({ kind, images: p.images })
-      // frames 0–3 s: "你好"; 4 s on: "再见"; frame 2 has a low-res reading difference
-      return { results: p.images.map((_, i) => ({ text: i < 4 ? (i === 2 ? '你好。' : '你好') : '再见', lines: [{ text: 'x', score: 0.9, box: [0.2, 0.82, 0.8, 0.9] }] })) }
+      return { results: p.images.map(() => ({ text: '你好', lines: [{ text: 'x', score: 0.9, box: [0.2, 0.82, 0.8, 0.9] }] })) }
     })
   }
 }))
@@ -21,7 +20,7 @@ vi.mock('../backend/lib/python', () => ({
 const ctx = { id: 't', signal: new AbortController().signal, progress: () => {}, log: () => {}, throwIfCanceled: () => {} }
 
 describe('offline screen reader', () => {
-  it('reads the frames on this PC (no AI key) and merges them into timed lines', async () => {
+  it('reads on this PC (no AI key); an unchanging picture is read once and reused', async () => {
     const { readScreen } = await import('../backend/pipeline/ocr')
     const dir = mkdtempSync(join(tmpdir(), 'kd-ocroff-'))
     const vid = join(dir, 'v.mp4')
@@ -29,8 +28,9 @@ describe('offline screen reader', () => {
     try {
       const r = await readScreen({ videoPath: vid, epDir: dir, durationSec: 8, interval: 1, cropTop: 0.7, geminiModel: 'g', provider: 'offline' }, ctx)
       expect(workerCalls[0].kind).toBe('ocr')
-      expect(workerCalls[0].images.length).toBeGreaterThanOrEqual(7)
-      expect(r.segments.map((s) => s.text)).toEqual(['你好', '再见'])
+      // 8 sampled frames of the same picture: the engine reads just one, the rest reuse it
+      expect(workerCalls[0].images).toHaveLength(1)
+      expect(r.segments.map((s) => s.text)).toEqual(['你好'])
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
