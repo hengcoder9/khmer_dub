@@ -12,7 +12,7 @@ interface UiState {
   zoom: number // px per second on the timeline
   previewEdit: boolean
   settings: SectionId | null
-  dialog: null | 'export' | 'automate' | 'newProject' | 'find' | 'clone' | 'link' | 'source' | 'watermark' | 'gateway' | 'account' | 'readscreen' | 'subcover' | 'ads'
+  dialog: null | 'export' | 'automate' | 'newProject' | 'find' | 'clone' | 'link' | 'source' | 'watermark' | 'gateway' | 'account' | 'readscreen' | 'subcover' | 'ads' | 'effects'
   editingId: string | null
   intent: HomeIntent | null
   set: (p: Partial<Omit<UiState, 'set'>>) => void

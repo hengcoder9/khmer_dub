@@ -1,5 +1,7 @@
 // Types shared by electron main/preload, backend and renderer.
 
+import type { VoiceFx } from './fx'
+
 export const APP_NAME = 'KhmerDub Studio'
 /** Where users get news and help */
 export const CONTACT = {
@@ -198,6 +200,17 @@ export interface Segment {
   textSpoken?: string
   /** the subtitle text `textSpoken` was made from; when the subtitle changes, the voice reads the subtitle again */
   spokenFor?: string
+  /** voice effect for this line (overrides the actor's) — 'none' switches the actor's effect off here */
+  fx?: VoiceFx | 'none'
+}
+
+/** A sound effect placed on an episode: "builtin:boom" or a file, at a time (source seconds), with a volume. */
+export interface SfxItem {
+  id: string
+  src: string
+  name: string
+  start: number
+  volume: number
 }
 
 export type Gender = 'male' | 'female' | 'unknown'
@@ -215,6 +228,8 @@ export interface Actor {
   ageManual?: boolean
   /** median voice pitch (Hz) from speaker detection */
   f0?: number
+  /** voice effect on every line of this actor (echo, radio, robot…) */
+  fx?: VoiceFx
   voiceId?: string
   lines: number
   totalSec: number
@@ -298,6 +313,8 @@ export interface Episode {
   stems: { full?: string; vocals?: string; instrumental?: string; audio16k?: string; dub?: string; mix?: string }
   /** externally produced voice track ("Import AI Voice"), replaces generated lines in the mix */
   voiceTrack?: string
+  /** sound effects placed on this episode */
+  sfx?: SfxItem[]
   exports?: string[]
   segments: Segment[]
   status: EpisodeStatus

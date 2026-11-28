@@ -6,12 +6,16 @@ import { mixDub } from '../lib/audio'
 import { runFfmpeg } from '../lib/ffmpeg'
 import { ensureAudio, ffFail } from './extract'
 import type { JobCtx } from '../queue'
+import type { VoiceFx } from '../../shared/fx'
+import { fxClip, sfxWav } from '../lib/fxrender'
 
 export interface MixPayload {
   videoPath: string
   epDir: string
   durationSec: number
-  clips: Array<{ path: string; start: number; gain: number }>
+  clips: Array<{ path: string; start: number; gain: number; fx?: VoiceFx }>
+  /** sound effects placed on the video: "builtin:boom" or a file, at a time, with a volume */
+  sfx?: Array<{ src: string; start: number; volume: number }>
   /** externally made voice track ("Import AI Voice") used instead of generated clips */
   voiceTrack?: string
   instrumental?: string
@@ -35,6 +39,13 @@ export async function mix(p: MixPayload, ctx: JobCtx): Promise<{ dub: string; mi
   const dub = p.voiceTrack && existsSync(p.voiceTrack) ? p.voiceTrack : join(p.epDir, 'dub.wav')
   if (dub === join(p.epDir, 'dub.wav')) {
     const clips = p.clips.filter((c) => existsSync(c.path))
+    // voice effects (echo, radio, robot…) rendered per clip, cached
+    const withFx = clips.filter((c) => c.fx)
+    for (const [k, c] of withFx.entries()) {
+      ctx.throwIfCanceled()
+      ctx.progress(5 + (5 * k) / withFx.length, `Voice effects ${k + 1} of ${withFx.length}`)
+      c.path = await fxClip(c.path, c.fx!)
+    }
     ctx.progress(10, `Placing ${clips.length} voice clips`)
     await mixDub(clips, p.durationSec, dub, (pct) => ctx.progress(10 + pct * 0.4))
   }
@@ -88,6 +99,26 @@ export async function mix(p: MixPayload, ctx: JobCtx): Promise<{ dub: string; mi
     mixInputs.push('[bg]')
   } else {
     filters.push('[sc]anullsink')
+  }
+
+  // sound effects: their own track, not ducked
+  if (p.sfx?.length) {
+    const placed: Array<{ path: string; start: number; gain: number }> = []
+    for (const s of p.sfx) {
+      try {
+        placed.push({ path: await sfxWav(s.src), start: Math.max(0, s.start), gain: s.volume })
+      } catch (e) {
+        ctx.log(`Sound effect skipped: ${(e as Error).message}`)
+      }
+    }
+    if (placed.length) {
+      const sfxTrack = join(p.epDir, 'sfx.wav')
+      await mixDub(placed, p.durationSec, sfxTrack)
+      inputs.push('-i', sfxTrack)
+      const i = idx++
+      filters.push(`[${i}:a]aformat=channel_layouts=stereo,aresample=44100[sfx]`)
+      mixInputs.push('[sfx]')
+    }
   }
 
   if (p.bgm && existsSync(p.bgm.path)) {

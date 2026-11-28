@@ -1130,3 +1130,52 @@ tools.g.subs	អក្សររត់
 tools.g.video	វីដេអូ
 tools.g.ai	AI
 tools.g.more	ផ្សេងៗ
+tools.effects	បែបផែនសំឡេង
+tools.s.effects	បែបផែន
+jobGroup.fx	បែបផែនសំឡេង
+fx.title	បែបផែនសំឡេង និងសំឡេងនិយាយ
+fx.desc	បន្ថែមបែបផែនសំឡេងនៅពេលណាក៏បាន ឬដាក់បែបផែនលើសំឡេងនិយាយ។ អ្នកអាចស្ដាប់វាតាមប៊ូតុងស្ដាប់នៅទីនេះ និងក្នុងការលាយ / ការនាំចេញ។
+fx.tabSfx	បែបផែនសំឡេង
+fx.tabVoice	បែបផែនសំឡេងនិយាយ
+fx.atPlayhead	សំឡេងថ្មីនឹងដាក់នៅទីតាំងចាក់៖ {{time}} — ផ្លាស់ទីទីតាំងចាក់លើបន្ទាត់ពេលវេលាជាមុនសិន។
+fx.import	សំឡេងរបស់អ្នក…
+fx.listen	ស្ដាប់
+fx.add	បន្ថែមនៅទីតាំងចាក់
+fx.added	បានបន្ថែម «{{name}}» នៅ {{time}}
+fx.placed	ក្នុងភាគនេះ ({{n}})
+fx.none	មិនទាន់មានបែបផែនសំឡេងទេ។ ជ្រើសពេលមួយលើបន្ទាត់ពេលវេលា រួចចុច + លើសំឡេងមួយ។
+fx.jump	ទៅពេលនេះ
+fx.move	ផ្លាស់មកទីនេះ
+fx.moveHint	ផ្លាស់វាទៅទីតាំងចាក់
+fx.remove	ដកចេញ
+fx.byActor	តាមតួ — រាល់ឃ្លារបស់តួនោះ
+fx.noCast	មិនទាន់មានតួទេ។
+fx.noEffect	គ្មានបែបផែន
+fx.forLines	បែបផែនសម្រាប់ឃ្លា {{n}} ដែលបានជ្រើស
+fx.selectLines	ជ្រើសឃ្លាក្នុងបញ្ជី ដើម្បីដាក់បែបផែនតែលើឃ្លាទាំងនោះ (ឧ. ការហៅទូរស័ព្ទ)
+fx.choose	ជ្រើស…
+fx.likeActor	ដូចតួ
+fx.linesSet	បានដាក់បែបផែនលើឃ្លា {{n}}
+fx.mixNote	បែបផែនត្រូវបានបន្ថែមពេលលាយសំឡេង — ពេលនាំចេញ (ជាមួយ «លាយសំឡេងឡើងវិញ») ឬប៊ូតុងលាយ។
+fx.v.echo	បន្លឺ
+fx.v.hall	សាល
+fx.v.radio	វិទ្យុ
+fx.v.phone	ទូរស័ព្ទ
+fx.v.megaphone	ឧបករណ៍បំពងសំឡេង
+fx.v.robot	មនុស្សយន្ត
+fx.v.giant	យក្ស (ធំ)
+fx.v.chipmunk	កំប្រុក (តូច)
+fx.v.whisper	ខ្សឹប
+fx.v.ghost	ខ្មោច
+fx.v.underwater	ក្រោមទឹក
+fx.s.whoosh	វូស
+fx.s.swoosh	វូសចុះ
+fx.s.ding	ឌីង
+fx.s.chime	កណ្ដឹង
+fx.s.pop	ផុប
+fx.s.click	ចុច
+fx.s.boom	ប៊ូម
+fx.s.hit	ទង្គិចរំភើប
+fx.s.riser	ឡើងខ្ពស់
+fx.s.heartbeat	ចង្វាក់បេះដូង
+fx.s.beep	ប៊ីប (បិទពាក្យ)

@@ -607,8 +607,11 @@ export async function mixEpisode(epId?: string) {
   const e = ep(epId)
   needVideo(e)
   const st = P().project!.settings
-  const clips = e.segments.filter((s) => s.audioPath).map((s) => ({ path: s.audioPath!, start: s.start, gain: s.volume * st.globalVolume }))
-  if (!clips.length && !e.voiceTrack) throw new Error('Generate voices first')
+  const cast = P().project!.cast
+  // voice effect: the line's own, else its actor's ('none' on a line switches the actor's off)
+  const fxOf = (s: Segment) => (s.fx === 'none' ? undefined : (s.fx ?? cast.find((a) => a.id === s.actorId)?.fx))
+  const clips = e.segments.filter((s) => s.audioPath).map((s) => ({ path: s.audioPath!, start: s.start, gain: s.volume * st.globalVolume, fx: fxOf(s) }))
+  if (!clips.length && !e.voiceTrack && !e.sfx?.length) throw new Error('Generate voices first')
   const r = await runJob<{ dub: string; mix: string }>(
     'mix',
     {
@@ -619,6 +622,7 @@ export async function mixEpisode(epId?: string) {
       voiceTrack: e.voiceTrack,
       instrumental: e.stems.instrumental,
       bgm: e.edit.bgm,
+      sfx: (e.sfx ?? []).map((x) => ({ src: x.src, start: x.start, volume: x.volume })),
       ducking: st.ducking,
       duckLevelDb: st.duckLevelDb,
       keepOriginal: st.keepOriginal,
@@ -680,7 +684,7 @@ export async function exportEpisode(opts: ExportOptions, epId?: string, extra?: 
   needVideo(e)
   const p = P().project!
   let mixPath: string | undefined
-  if (opts.mp4 && !opts.originalAudio && (e.segments.some((s) => s.audioPath) || e.voiceTrack)) {
+  if (opts.mp4 && !opts.originalAudio && (e.segments.some((s) => s.audioPath) || e.voiceTrack || e.sfx?.length)) {
     if (p.settings.globalVolume < 0.05) toast.warning('Dub volume is 0% — the dub voices will be silent in this video. Raise "Dub volume" on the timeline toolbar.', { duration: 10000 })
     if (opts.remix || !e.stems.mix) await mixEpisode(e.id)
     e = ep(e.id)

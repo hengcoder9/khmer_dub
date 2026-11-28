@@ -10,6 +10,8 @@ import { setLlmConfig, testKey } from '../lib/llm'
 import { setCloneLanes, nextCloneLane } from '../lib/python'
 import { cacheDir } from '../lib/paths'
 import { allowFile } from '../lib/allow'
+import { fxClip, sfxWav } from '../lib/fxrender'
+import type { VoiceFx } from '../../shared/fx'
 import { shortenLine } from '../pipeline/translate'
 import { planEdit, type AiEditRequest } from '../pipeline/aiedit'
 import { planCreate, thumbPlan, videoPrompt, writeMeta, type CreatorRequest } from '../pipeline/aicreate'
@@ -94,6 +96,17 @@ export async function apiRoutes(app: FastifyInstance) {
   app.delete<{ Params: { id: string } }>('/voices/clone/:id', async (req) => {
     deleteCloneVoice(req.params.id)
     return { ok: true }
+  })
+  // Effects dialog: hear a sound effect, or a voice clip with an effect
+  app.post<{ Body: { sfx?: string; path?: string; fx?: VoiceFx } }>('/fx/preview', async (req, reply) => {
+    try {
+      const out = req.body.sfx ? await sfxWav(req.body.sfx) : req.body.path && req.body.fx ? await fxClip(req.body.path, req.body.fx) : null
+      if (!out) return reply.code(400).send({ error: 'sfx, or path + fx, required' })
+      allowFile(out)
+      return { path: out }
+    } catch (e) {
+      return reply.code(422).send({ error: (e as Error).message })
+    }
   })
   app.post<{ Body: { voiceId: string; text: string; defaultMale: string; defaultFemale: string } }>('/voices/preview', async (req) => {
     const path = await previewVoice({ ...req.body, outDir: join(cacheDir, 'preview') })
