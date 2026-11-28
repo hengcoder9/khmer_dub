@@ -1,4 +1,6 @@
 import type { FastifyInstance } from 'fastify'
+import { cloudLink, listCloud } from '../pipeline/cloud'
+import { dropDuplicateEpisodes, sortByEpisode } from '../../shared/episodes'
 import { createReadStream } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
 import { extname, join, resolve } from 'node:path'
@@ -52,6 +54,15 @@ export async function mediaRoutes(app: FastifyInstance) {
     } catch (e) {
       return reply.code(400).send({ error: (e as Error).message })
     }
+    // cloud folders (Drive / OneDrive / MEGA) are listed so the episodes can be picked; Dropbox folders come as one zip
+    const cloud = cloudLink(req.body?.url ?? '')
+    if (cloud) {
+      try {
+        return await listCloud(cloud.kind, cloud.url)
+      } catch (e) {
+        return reply.code(422).send({ error: (e as Error).message })
+      }
+    }
     if (link.kind === 'gdrive' || link.kind === 'dropbox') return { type: 'file', kind: link.kind }
     try {
       const r = await runYtdlp(infoArgs(link.url, !!req.body?.playlist), { keepStdout: true, timeoutMs: 90_000 })
@@ -71,8 +82,10 @@ export async function mediaRoutes(app: FastifyInstance) {
     if (!dir) return reply.code(400).send({ error: 'dir required' })
     const abs = resolve(dir)
     const names = (await readdir(abs, { withFileTypes: true })).filter((d) => d.isFile() && isVideoName(d.name)).map((d) => d.name)
-    names.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
-    return { files: names.map((n) => join(abs, n)) }
+    // episode order from the names ("Ep 3", "第3集", "ភាគ៣", "S01E03"…); the same episode twice → keep the biggest file
+    const withSize = await Promise.all(names.map(async (n) => ({ n, size: (await stat(join(abs, n))).size })))
+    const { kept, skipped } = dropDuplicateEpisodes(sortByEpisode(withSize, (x) => x.n), (x) => x.n, (x) => x.size)
+    return { files: kept.map((x) => join(abs, x.n)), skipped: skipped.map((x) => x.n) }
   })
 
   /** Probe a file the user picked and allow it to be streamed. */

@@ -9,6 +9,7 @@ import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { JobCtx } from '../queue'
 import { downloadArgs, explainError, parseLine, runYtdlp, type Quality } from './ytdlp'
+import { cloudLink, downloadDropboxFolder, downloadMega, oneDriveFileUrl } from './cloud'
 
 export interface DownloadPayload {
   url: string
@@ -20,7 +21,9 @@ export interface DownloadPayload {
 /** Paywalled / DRM streaming services (drama apps and video platforms). */
 const BLOCKED = [
   'iq.com', 'iqiyi.com', 'wetv.vip', 'v.qq.com', 'qq.com', 'hongguoduanju.com', 'dramabox', 'goodshort',
-  'youku.com', 'mgtv.com', 'bilibili.com', 'netflix.com', 'viu.com', 'disneyplus.com', 'primevideo.com', 'reelshort', 'shortmax', 'flextv'
+  'youku.com', 'mgtv.com', 'bilibili.com', 'netflix.com', 'viu.com', 'disneyplus.com', 'primevideo.com', 'reelshort', 'shortmax', 'flextv',
+  // unlicensed drama streaming sites (and their short links)
+  'kisskh'
 ]
 
 const VIDEO_EXT = /\.(mp4|m4v|mkv|mov|webm|avi)$/i
@@ -48,6 +51,8 @@ export function resolveLink(raw: string): { url: string; kind: LinkKind } {
     if (!id) throw new Error('Could not find the file id in that Google Drive link. Use the file\'s "Share → Copy link".')
     return { url: `https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t`, kind: 'gdrive' }
   }
+  // OneDrive's pre-signed download URLs (from a shared folder listing) are plain files
+  if (host.endsWith('files.1drv.com') || (host.endsWith('.sharepoint.com') && /download\.aspx/i.test(u.pathname))) return { url: u.toString(), kind: 'direct' }
   if (host.endsWith('dropbox.com')) {
     u.searchParams.delete('dl')
     u.searchParams.set('dl', '1')
@@ -67,8 +72,18 @@ function fileName(res: Response, kind: string): string {
   return name
 }
 
-export async function download(p: DownloadPayload, ctx: JobCtx): Promise<{ path: string; title?: string }> {
-  const { url, kind } = resolveLink(p.url)
+export async function download(p: DownloadPayload, ctx: JobCtx): Promise<{ path: string; paths?: string[]; title?: string }> {
+  // checks the blocked list first
+  let { url, kind } = resolveLink(p.url)
+  const cloud = cloudLink(p.url)
+  if (cloud?.kind === 'mega') return downloadMega(cloud.url, p.outDir, ctx)
+  if (cloud?.kind === 'dropbox-folder') return downloadDropboxFolder(cloud.url, p.outDir, ctx)
+  if (cloud?.kind === 'gdrive-folder') throw new Error('That is a Google Drive folder — paste it in Import Link and pick the videos.')
+  if (cloud?.kind === 'onedrive') {
+    ctx.progress(0, 'Opening OneDrive link')
+    url = await oneDriveFileUrl(cloud.url)
+    kind = 'direct'
+  }
   if (kind === 'page') return downloadPage(url, p.outDir, p.quality ?? 'best', ctx)
   ctx.progress(0, 'Connecting')
   const res = await fetch(url, { redirect: 'follow', signal: ctx.signal, headers: { 'user-agent': 'KhmerDubStudio' } })

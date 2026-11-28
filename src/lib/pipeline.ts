@@ -104,9 +104,16 @@ export async function addEpisodeVideos(paths: string[]): Promise<string[]> {
 export async function importFolder() {
   const dir = await window.api.openDir({ title: 'Folder with the episode videos' })
   if (!dir) return
-  const { files } = await post<{ files: string[] }>('/media/scan-dir', { dir })
-  if (!files.length) throw new Error('No video files (.mp4 .mkv .mov .webm .m4v .avi) in that folder')
-  toast.info(`Importing ${files.length} episode${files.length > 1 ? 's' : ''}…`)
+  const r = await post<{ files: string[]; skipped?: string[] }>('/media/scan-dir', { dir })
+  // already in this project → not again
+  const have = new Set(P().project!.episodes.map((e) => e.videoPath?.toLowerCase()).filter(Boolean))
+  const files = r.files.filter((f) => !have.has(f.toLowerCase()))
+  if (!r.files.length) throw new Error('No video files (.mp4 .mkv .mov .webm .m4v .avi) in that folder')
+  if (!files.length) throw new Error('All videos in that folder are already in this project')
+  const extra = [r.files.length - files.length ? `${r.files.length - files.length} already imported` : '', r.skipped?.length ? `${r.skipped.length} duplicate episode file${r.skipped.length > 1 ? 's' : ''} skipped (kept the biggest)` : '']
+    .filter(Boolean)
+    .join(', ')
+  toast.info(`Importing ${files.length} episode${files.length > 1 ? 's' : ''} in episode order…${extra ? ` (${extra})` : ''}`)
   const ids = await addEpisodeVideos(files)
   toast.success(`Imported ${ids.length} episode${ids.length > 1 ? 's' : ''}: ${ids.map((id) => P().project!.episodes.find((e) => e.id === id)?.label).join(', ')}`)
   autoLines(ids)
@@ -122,14 +129,15 @@ export type LinkQuality = 'best' | '1080' | '720' | '480'
 export async function importLink(urls: string | string[], quality: LinkQuality = '1080') {
   const list = Array.isArray(urls) ? urls : [urls]
   const outDir = `${P().dir}\\downloads`
-  const jobs = list.map((url) => runJob<{ path: string; title?: string }>('download', { url, outDir, quality }))
+  const jobs = list.map((url) => runJob<{ path: string; paths?: string[]; title?: string }>('download', { url, outDir, quality }))
   const added: string[] = []
   let failed = 0
   // add in link order: wait for each in turn (they still download in parallel)
   for (const job of jobs) {
     try {
       const r = await job
-      const ids = await addEpisodeVideos([r.path])
+      // a Dropbox folder comes as several videos at once
+      const ids = await addEpisodeVideos(r.paths?.length ? r.paths : [r.path])
       added.push(...ids)
       if (list.length === 1) toast.success(`Downloaded${r.title ? ` “${r.title}”` : ''} → ${P().project!.episodes.find((e) => e.id === ids[0])?.label}`)
       autoLines(ids)

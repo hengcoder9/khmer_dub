@@ -1080,3 +1080,7 @@ home.signInHint	Google, Telegram ឬអ៊ីមែល
 home.trial	សាកល្បងឥតគិតថ្លៃ
 home.noPlan	គ្មានគម្រោងសកម្ម
 home.getPro	យក Pro
+link.desc3	បិទភ្ជាប់តំណវីដេអូដែលអ្នកជាម្ចាស់ ឬមានសិទ្ធិបញ្ចូលសំឡេង៖ ទំព័រវីដេអូ (YouTube, Facebook, TikTok… — វីដេអូដែលអ្នកបង្ហោះខ្លួនឯង) បញ្ជីចាក់ ឯកសារវីដេអូផ្ទាល់ ឬតំណចែករំលែកពី Google Drive, Dropbox, OneDrive ឬ MEGA — ឯកសារតែមួយ ឬថតទាំងមូល (ភាគនានាត្រូវបានរៀបតាមលំដាប់)។ សេវាផ្សាយដែលមានការការពារ / VIP និងគេហទំព័ររឿងភាគគ្មានអាជ្ញាប័ណ្ណ មិនត្រូវបានគាំទ្រទេ។
+link.dropboxFolder	ថត Dropbox — វីដេអូទាំងអស់ក្នុងថត តាមលំដាប់ភាគ
+link.onedrive	ឯកសារ OneDrive
+link.mega	ឯកសារ MEGA

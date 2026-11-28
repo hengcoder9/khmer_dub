@@ -12,7 +12,7 @@ import { post } from '@/lib/api'
 import { formatTime } from '@/lib/utils'
 
 type LinkInfo =
-  | { type: 'file'; kind: 'direct' | 'gdrive' | 'dropbox' }
+  | { type: 'file'; kind: 'direct' | 'gdrive' | 'dropbox' | 'dropbox-folder' | 'onedrive' | 'mega'; title?: string }
   | { type: 'video'; title: string; thumbnail: string | null; duration: number | null; uploader: string | null; site: string | null; heights: number[]; isLive: boolean }
   | {
       type: 'playlist'
@@ -111,8 +111,8 @@ export function LinkDialog({ onClose }: { onClose: () => void }) {
         <DialogTitle>{t('link.title', 'Import from link')}</DialogTitle>
         <DialogDescription className="mb-4 text-sm text-muted-foreground">
           {t(
-            'link.desc2',
-            'Paste a link to a video you own or are licensed to dub: a video page (YouTube, Facebook, TikTok… — your own uploads), a playlist, a direct video file, or a Google Drive / Dropbox share link. Copy-protected streaming / VIP services (iQIYI, WeTV, Tencent, DramaBox…) are not supported.'
+            'link.desc3',
+            'Paste a link to a video you own or are licensed to dub: a video page (YouTube, Facebook, TikTok… — your own uploads), a playlist, a direct video file, or a share link from Google Drive, Dropbox, OneDrive or MEGA — a single file or a whole shared folder (episodes are put in order). Copy-protected streaming / VIP services and unlicensed drama sites are not supported.'
           )}
         </DialogDescription>
         <Field label={t('link.url', 'Link')}>
@@ -139,7 +139,17 @@ export function LinkDialog({ onClose }: { onClose: () => void }) {
         {info?.type === 'file' && (
           <div className="mt-3 flex items-center gap-2 rounded-md border p-3 text-sm">
             <FileVideo className="size-5 text-primary" />
-            {info.kind === 'gdrive' ? t('link.gdrive', 'Google Drive file') : info.kind === 'dropbox' ? t('link.dropbox', 'Dropbox file') : t('link.direct', 'Direct video file')}
+            {info.kind === 'gdrive'
+              ? t('link.gdrive', 'Google Drive file')
+              : info.kind === 'dropbox'
+                ? t('link.dropbox', 'Dropbox file')
+                : info.kind === 'dropbox-folder'
+                  ? t('link.dropboxFolder', 'Dropbox folder — every video in it, in episode order')
+                  : info.kind === 'onedrive'
+                    ? `${t('link.onedrive', 'OneDrive file')}${info.title ? `: ${info.title}` : ''}`
+                    : info.kind === 'mega'
+                      ? `${t('link.mega', 'MEGA file')}${info.title ? `: ${info.title}` : ''}`
+                      : t('link.direct', 'Direct video file')}
             <span className="text-muted-foreground">— {t('link.asIs', 'downloaded as is')}</span>
           </div>
         )}

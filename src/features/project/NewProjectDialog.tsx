@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { sortByEpisode } from '@shared/episodes'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Film, FolderOpen, Loader2 } from 'lucide-react'
@@ -28,7 +29,8 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
   const pickVideos = async () => {
     const files = await window.api.openFiles({ filters: VIDEO_FILTERS, title: t('newProject.pickVideos', 'Pick one video, or several for a series (E01, E02…)') })
     if (files.length) {
-      setVideos(files.sort((a, b) => a.localeCompare(b, undefined, { numeric: true })))
+      // episode order from the names ("Ep 3", "第3集", "ភាគ៣", "S01E03"…), not just alphabetical
+      setVideos(sortByEpisode(files, (f) => f.split(/[\\/]/).pop()!))
       if (!name) setName(files[0].split(/[\\/]/).pop()!.replace(/\.[^.]+$/, '').replace(/[ _-]*(e|ep|episode)?\s*\d+$/i, '') || 'Project')
     }
   }
