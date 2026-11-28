@@ -110,6 +110,8 @@ export interface ScanFrame {
   t: number
   score: number
   union: number
+  /** text pixels in this frame (0 = no subtitle) */
+  count?: number
 }
 
 /**
@@ -135,4 +137,42 @@ export function refineWithScan(lines: ReadLine[], scan: ScanFrame[], interval: n
     if (out[i].end > out[i + 1].start) out[i].end = out[i + 1].start
   }
   return out.filter((l) => l.end - l.start >= 0.2)
+}
+
+/** Is sample b the same subtitle (or still none) as sample a? Steady-text pictures, safe side: unsure = read again. */
+export function sameSubtitle(a: Uint8Array | undefined, b: Uint8Array | undefined, emptyMax = 12): boolean {
+  if (!a || !b || a.length !== b.length) return false
+  let na = 0
+  let nb = 0
+  let both = 0
+  let either = 0
+  for (let k = 0; k < a.length; k++) {
+    na += a[k]
+    nb += b[k]
+    if (a[k] & b[k]) both++
+    if (a[k] | b[k]) either++
+  }
+  if (na <= emptyMax && nb <= emptyMax) return true
+  const j = either ? both / either : 1
+  const close = Math.abs(na - nb) / Math.max(na, nb, 1) <= 0.1
+  return j >= 0.8 || (j >= 0.6 && close)
+}
+
+/**
+ * Which sampled frames the AI must read (speed): a sample showing the same subtitle (or still none) as the one
+ * before it repeats that reading. Without the steady-text pictures every frame is read.
+ */
+export function planReads(times: number[], samples: Array<Uint8Array | undefined>): { send: number[]; same: Map<number, number>; skipping: boolean } {
+  const send: number[] = []
+  const same = new Map<number, number>()
+  if (samples.filter(Boolean).length < times.length * 0.9) return { send: times.map((_, i) => i), same, skipping: false }
+  let lastSent = -1
+  times.forEach((_, i) => {
+    if (lastSent >= 0 && sameSubtitle(samples[i - 1], samples[i])) same.set(i, lastSent)
+    else {
+      send.push(i)
+      lastSent = i
+    }
+  })
+  return { send, same, skipping: true }
 }

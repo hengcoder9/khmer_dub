@@ -32,7 +32,7 @@ export function bandFromBoxes(frames: OcrLine[][]): { top: number; bottom: numbe
   const pad = 0.02
   return { top: Math.max(0, top - pad), bottom: Math.min(1, bottom + pad) }
 }
-import { maskChange, mergeReadings, refineWithScan, textMask, type ScanFrame } from '../../shared/ocrtiming'
+import { maskChange, mergeReadings, planReads, refineWithScan, textMask, type ScanFrame } from '../../shared/ocrtiming'
 import { join } from 'node:path'
 import { chunk } from '../../shared/translate'
 import { runFfmpeg } from '../lib/ffmpeg'
@@ -111,7 +111,32 @@ const SCAN_H = 64
  * Streams raw greyscale frames from ffmpeg (nothing kept in memory but the last mask).
  */
 export function scanBand(videoPath: string, top: number, keep: number, signal?: AbortSignal): Promise<ScanFrame[]> {
+  return scanBandFull(videoPath, top, keep, signal).then((r) => r.frames)
+}
+
+const POOL_W = 160
+const POOL_H = 16
+/** Text pixels that stayed text in two frames in a row (still subtitles; moving background drops out), pooled small. */
+function pooledSteady(mask: Uint8Array, prev: Uint8Array | null): Uint8Array {
+  const out = new Uint8Array(POOL_W * POOL_H)
+  if (!prev) return out
+  const fx = SCAN_W / POOL_W
+  const fy = SCAN_H / POOL_H
+  for (let y = 0; y < SCAN_H; y++)
+    for (let x = 0; x < SCAN_W; x++) {
+      const i = y * SCAN_W + x
+      if (mask[i] & prev[i]) out[Math.floor(y / fy) * POOL_W + Math.floor(x / fx)] = 1
+    }
+  return out
+}
+
+/**
+ * Pixel scan + a small "steady text" picture at every `sampleEvery` seconds (to tell which samples show the
+ * same subtitle as the one before, so the AI does not read it twice).
+ */
+export function scanBandFull(videoPath: string, top: number, keep: number, signal?: AbortSignal, sampleEvery = 0): Promise<{ frames: ScanFrame[]; samples: Uint8Array[] }> {
   return new Promise((resolve, reject) => {
+    const samples: Uint8Array[] = []
     const vf = `fps=${SCAN_FPS},crop=iw:ih*${keep.toFixed(3)}:0:ih*${top.toFixed(3)},scale=${SCAN_W}:${SCAN_H}:flags=area,format=gray`
     const child = spawn(binPath('ffmpeg').path, ['-hide_banner', '-nostdin', '-v', 'error', '-i', videoPath, '-an', '-vf', vf, '-f', 'rawvideo', '-pix_fmt', 'gray', 'pipe:1'], { windowsHide: true, signal })
     const size = SCAN_W * SCAN_H
@@ -125,7 +150,13 @@ export function scanBand(videoPath: string, top: number, keep: number, signal?: 
         const mask = textMask(new Uint8Array(buf.buffer, buf.byteOffset, size), SCAN_W, SCAN_H)
         buf = buf.subarray(size)
         const c = prev ? maskChange(prev, mask) : { score: 0, union: 0 }
-        out.push({ t: Math.round((i / SCAN_FPS) * 100) / 100, ...c })
+        const t = Math.round((i / SCAN_FPS) * 100) / 100
+        out.push({ t, ...c })
+        if (sampleEvery > 0) {
+          const k = Math.round(t / sampleEvery)
+          // the scan frame nearest to each sample time (sample k is at k * sampleEvery)
+          if (Math.abs(t - k * sampleEvery) < 0.5 / SCAN_FPS + 1e-6 && !samples[k]) samples[k] = pooledSteady(mask, prev)
+        }
         prev = mask
         i++
       }
@@ -133,7 +164,7 @@ export function scanBand(videoPath: string, top: number, keep: number, signal?: 
     let err = ''
     child.stderr.on('data', (d) => (err = (err + d).slice(-2000)))
     child.on('error', reject)
-    child.on('close', (code) => (code === 0 || out.length ? resolve(out) : reject(new Error(`Pixel scan failed: ${err.trim().slice(-300)}`))))
+    child.on('close', (code) => (code === 0 || out.length ? resolve({ frames: out, samples }) : reject(new Error(`Pixel scan failed: ${err.trim().slice(-300)}`))))
   })
 }
 
@@ -147,6 +178,11 @@ export async function readScreen(p: OcrPayload, ctx: JobCtx): Promise<{ segments
   const bottom = p.region ? Math.max(top + 0.03, Math.min(1, p.region.bottom)) : 1
   const keep = bottom - top
   try {
+    // the pixel scan runs alongside the frame sampling: it gives exact timing AND tells which frames need the AI
+    const scanning = scanBandFull(p.videoPath, top, keep, ctx.signal, interval).catch((e) => {
+      ctx.log(`Timing scan skipped: ${(e as Error).message}`)
+      return { frames: [] as ScanFrame[], samples: [] as Uint8Array[] }
+    })
     ctx.progress(0, 'Sampling frames')
     const r = await runFfmpeg(
       ['-y', '-i', p.videoPath, '-vf', `fps=1/${interval},crop=iw:ih*${keep.toFixed(3)}:0:ih*${top.toFixed(3)},scale='min(960,iw)':-2`, '-q:v', '5', join(dir, 'f_%06d.jpg'), '-progress', 'pipe:1', '-nostats'],
@@ -156,20 +192,20 @@ export async function readScreen(p: OcrPayload, ctx: JobCtx): Promise<{ segments
     const frames = readdirSync(dir).filter((f) => f.endsWith('.jpg')).sort()
     const times = frames.map((_, i) => Math.round(i * interval * 100) / 100)
     const reads = new Map<number, string>()
-    const batches = chunk(frames.map((f, i) => ({ f, t: times[i] })), 24)
-
-    // exact timing: scan the subtitle band frame by frame while the AI reads (a failed scan just keeps midpoints)
-    const scanning = scanBand(p.videoPath, top, keep, ctx.signal).catch((e) => {
-      ctx.log(`Timing scan skipped: ${(e as Error).message}`)
-      return [] as ScanFrame[]
-    })
+    ctx.progress(15, 'Finding the frames where the subtitle changes')
+    const { frames: scan, samples } = await scanning
+    // speed: only frames where the subtitle changed are read; repeats are filled in afterwards
+    const plan = planReads(times, samples)
+    const toRead = plan.send
+    if (plan.skipping) ctx.log(`Reading ${toRead.length} of ${frames.length} frames (${plan.same.size} repeats skipped)`)
+    const batches = chunk(toRead.map((i) => ({ f: frames[i], t: times[i] })), 24)
 
     let doneFrames = 0
-    ctx.progress(15, `Reading ${frames.length} frames`)
+    ctx.progress(15, `Reading ${toRead.length} frames${plan.skipping ? ` (of ${frames.length})` : ''}`)
     const provider = p.provider ?? 'gemini'
     if (provider === 'offline') {
-      const res = await offlineRead(frames.map((f) => join(dir, f)), ctx, [15, 95])
-      res.forEach((r, i) => reads.set(times[i], (r.text ?? '').trim()))
+      const res = await offlineRead(toRead.map((i) => join(dir, frames[i])), ctx, [15, 95])
+      res.forEach((r, k) => reads.set(times[toRead[k]], (r.text ?? '').trim()))
     } else {
     const model = (provider === 'gemini' ? p.geminiModel : p.model) || p.geminiModel
     const llmJson = makeReader(p.geminiModel, ctx.log)
@@ -197,15 +233,18 @@ export async function readScreen(p: OcrPayload, ctx: JobCtx): Promise<{ segments
       })
       for (const row of rows) reads.set(Number(row.t), (row.text ?? '').trim())
       doneFrames += batch.length
-      ctx.progress(15 + (80 * doneFrames) / frames.length, `Read ${doneFrames} of ${frames.length} frames`)
+      ctx.progress(15 + (80 * doneFrames) / Math.max(1, toRead.length), `Read ${doneFrames} of ${toRead.length} frames`)
     })
     }
+
+    // the skipped frames: the same subtitle as the frame read before them
+    for (const [i, from] of plan.same) reads.set(times[i], reads.get(times[from]) ?? '')
 
     // readings → lines (OCR noise and one-sample blinks merged), then snapped to the real frames
     ctx.progress(96, 'Matching the exact start / end of every line')
     const lines = refineWithScan(
       mergeReadings(times.map((t) => ({ t, text: reads.get(t) ?? '' })), interval),
-      await scanning,
+      scan,
       interval,
       p.durationSec
     )
