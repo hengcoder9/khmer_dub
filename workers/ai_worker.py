@@ -44,7 +44,13 @@ def _mt(p, job):
     return translate(p, job)
 
 
-app = create_app({"stt": _stt, "separate": _separate, "diarize": _diarize, "tts_edge": _tts_edge, "mt": _mt})
+def _ocr(p, job):
+    from ocr import read
+
+    return read(p, job)
+
+
+app = create_app({"stt": _stt, "separate": _separate, "diarize": _diarize, "tts_edge": _tts_edge, "mt": _mt, "ocr": _ocr})
 
 
 @app.get("/health")
@@ -54,7 +60,7 @@ def health():
 
 @app.get("/deps")
 def deps():
-    mods = ["edge_tts", "faster_whisper", "torch", "demucs", "resemblyzer", "librosa", "sklearn", "ctranslate2", "f5_tts"]
+    mods = ["edge_tts", "faster_whisper", "torch", "demucs", "resemblyzer", "librosa", "sklearn", "ctranslate2", "f5_tts", "rapidocr_onnxruntime"]
     return {m: importlib.util.find_spec(m) is not None for m in mods}
 
 

@@ -2,7 +2,7 @@
 
 import { assessCopyright, type CopyrightReport, type MusicFinding } from '@shared/copyright'
 import { toast } from 'sonner'
-import type { Actor, AgeGroup, Aspect, Episode, MediaInfo, Segment, SttEngine, Translator, Voice } from '@shared/types'
+import { DEFAULT_CLAUDE_MODEL, type Actor, type AgeGroup, type Aspect, type Episode, type MediaInfo, type Segment, type SttEngine, type Translator, type Voice } from '@shared/types'
 import { CAPTION_PRESETS, DEFAULT_CAPTIONS } from '@shared/captions'
 import type { StoryBackground, StoryPlan, StoryStyle } from '@shared/story'
 import { needsPolish, spokenText } from '@shared/voicetext'
@@ -925,9 +925,7 @@ const ocrJob = (e: Episode) =>
       durationSec: e.durationSec,
       interval: S().ocrInterval,
       cropTop: S().ocrCropTop,
-      geminiModel: S().geminiModel,
-      provider: S().screenReader,
-      model: S().screenReader === 'codecraft' ? S().codecraftModel : S().geminiModel
+      ...readerChoice()
     },
     e.id
   )
@@ -952,7 +950,7 @@ export interface ScreenLine {
 const readerChoice = () => ({
   geminiModel: S().geminiModel,
   provider: S().screenReader,
-  model: S().screenReader === 'codecraft' ? S().codecraftModel : S().geminiModel
+  model: S().screenReader === 'codecraft' ? S().codecraftModel : S().screenReader === 'claude' ? S().claudeModel || DEFAULT_CLAUDE_MODEL : S().geminiModel
 })
 
 /** Ask the AI where the burned-in subtitles sit; returns fractions of the frame height, or null if none were seen. */

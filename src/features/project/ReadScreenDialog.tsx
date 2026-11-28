@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight, Check, Loader2, Play, Pause, RotateCcw, ScanText
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { useActiveEpisode } from '@/store/project'
-import { useSettings } from '@/store/settings'
+import { useSettings, type ScreenReader } from '@/store/settings'
 import { mediaUrl } from '@/lib/api'
 import { applyScreenLines, findScreenArea, notify, readScreenArea, type ScreenLine } from '@/lib/pipeline'
 import { cn } from '@/lib/utils'
@@ -203,6 +203,7 @@ export function ReadScreenDialog({ onClose }: { onClose: () => void }) {
                   <p className="text-xs text-muted-foreground">
                     {t('rs.tip', 'Tip: pause on a frame that shows a subtitle, then position the box over it.')}
                   </p>
+                  <ReaderPicker />
                 </div>
                 <Button size="lg" className="h-11 w-full bg-brand text-white" onClick={start} disabled={!src}>
                   {t('rs.read', 'Read the subtitles')} <ArrowRight />
@@ -268,5 +269,40 @@ export function ReadScreenDialog({ onClose }: { onClose: () => void }) {
         </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** Who reads the subtitles (also in Settings → API Keys). */
+export const SCREEN_READERS: Array<{ value: ScreenReader; label: string }> = [
+  { value: 'gemini', label: 'Google Gemini' },
+  { value: 'claude', label: 'Claude' },
+  { value: 'codecraft', label: 'CodeCraft' },
+  { value: 'offline', label: 'Offline (this PC) — Chinese & English' }
+]
+
+function ReaderPicker() {
+  const { t } = useTranslation()
+  const reader = useSettings((s) => s.screenReader)
+  const set = useSettings((s) => s.set)
+  const hint: Record<ScreenReader, string> = {
+    gemini: t('rs.rGemini', 'Best for most languages, incl. Khmer and Thai. Uses your Gemini key.'),
+    claude: t('rs.rClaude', 'Very accurate reading. Uses your Claude key (Gemini takes over if the Claude account fails).'),
+    codecraft: t('rs.rCodecraft', 'Uses your CodeCraft key (Gemini takes over if the CodeCraft account fails).'),
+    offline: t('rs.rOffline', 'No key, no internet, free. Reads Chinese and English. Install it once in Settings → Engines.')
+  }
+  return (
+    <div className="mt-2 flex flex-col gap-1.5 rounded-lg border bg-muted/40 p-3">
+      <label className="flex items-center gap-2 text-sm font-medium">
+        {t('rs.reader', 'Read with')}
+        <select className="h-8 flex-1 rounded-md border bg-background px-2 text-sm" value={reader} onChange={(e) => set({ screenReader: e.target.value as ScreenReader })}>
+          {SCREEN_READERS.map((r) => (
+            <option key={r.value} value={r.value}>
+              {r.value === 'offline' ? t('rs.offline', 'Offline (this PC) — Chinese & English') : r.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <span className="text-xs text-muted-foreground">{hint[reader]}</span>
+    </div>
   )
 }

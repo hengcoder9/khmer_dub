@@ -100,6 +100,9 @@ function packagesFor(group: string, cuda: boolean): string[][] {
       return [['webrtcvad-wheels', 'librosa>=0.10', 'scikit-learn', 'scipy'], ['resemblyzer==0.1.4', '--no-deps']]
     case 'translate':
       return [['ctranslate2>=4.4', 'sentencepiece', 'huggingface_hub']]
+    case 'ocr':
+      // headless OpenCV (no GUI DLLs); numpy stays < 2 for the other engines
+      return [['rapidocr_onnxruntime>=1.3,<2', 'opencv-python-headless<4.11', 'numpy<2']]
     case 'voxcpm':
       // --no-deps: voxcpm also lists gradio, funasr, torchcodec, modelscope and training libs that cloning doesn't import,
       // and torchcodec would pull a newer torch that breaks the other engines. Keep torch / numpy pinned.

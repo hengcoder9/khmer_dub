@@ -1,6 +1,37 @@
 import { mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { binPath } from '../lib/paths'
+import { aiWorker } from '../lib/python'
+import { engineStatus } from './pysetup'
+
+/** who reads the frames: an AI with a key, or the offline OCR engine on this PC */
+export type ReaderKind = 'gemini' | 'claude' | 'codecraft' | 'offline'
+
+interface OcrLine {
+  text: string
+  score: number
+  box: [number, number, number, number]
+}
+
+/** Offline OCR (RapidOCR in the Python worker) for a list of image files. */
+async function offlineRead(images: string[], ctx: JobCtx, span: [number, number]): Promise<Array<{ text: string; lines: OcrLine[] }>> {
+  const st = await engineStatus().catch(() => ({}) as Record<string, boolean>)
+  if (!st.ocr) throw new Error('The offline screen reader is not installed: open Settings → Engines and install “Offline screen reader (OCR)”. Or choose Gemini / Claude to read the screen.')
+  const r = await aiWorker.job<{ results: Array<{ text: string; lines: OcrLine[] }> }>('ocr', { images, min_score: 0.5 }, ctx, span)
+  return r.results
+}
+
+/** Subtitle band from offline OCR boxes: the text rows in the lower part that show up in at least 2 frames. */
+export function bandFromBoxes(frames: OcrLine[][]): { top: number; bottom: number } | null {
+  const rows = frames.flatMap((ls, fi) => ls.filter((l) => (l.box[1] + l.box[3]) / 2 > 0.45 && l.box[2] - l.box[0] > 0.05).map((l) => ({ fi, top: l.box[1], bottom: l.box[3] })))
+  if (!rows.length) return null
+  const frameCount = new Set(rows.map((r) => r.fi)).size
+  if (frameCount < Math.min(2, frames.length)) return null
+  const top = Math.min(...rows.map((r) => r.top))
+  const bottom = Math.max(...rows.map((r) => r.bottom))
+  const pad = 0.02
+  return { top: Math.max(0, top - pad), bottom: Math.min(1, bottom + pad) }
+}
 import { maskChange, mergeReadings, refineWithScan, textMask, type ScanFrame } from '../../shared/ocrtiming'
 import { join } from 'node:path'
 import { chunk } from '../../shared/translate'
@@ -67,7 +98,7 @@ export interface OcrPayload {
   thumbs?: boolean
   geminiModel: string
   /** which AI reads the frames (default Gemini) */
-  provider?: 'gemini' | 'codecraft'
+  provider?: ReaderKind
   model?: string
 }
 
@@ -136,9 +167,13 @@ export async function readScreen(p: OcrPayload, ctx: JobCtx): Promise<{ segments
     let doneFrames = 0
     ctx.progress(15, `Reading ${frames.length} frames`)
     const provider = p.provider ?? 'gemini'
+    if (provider === 'offline') {
+      const res = await offlineRead(frames.map((f) => join(dir, f)), ctx, [15, 95])
+      res.forEach((r, i) => reads.set(times[i], (r.text ?? '').trim()))
+    } else {
     const model = (provider === 'gemini' ? p.geminiModel : p.model) || p.geminiModel
     const llmJson = makeReader(p.geminiModel, ctx.log)
-    await mapLimit(batches, llmParallelism(keyPool.all(provider).length), async (batch) => {
+    await mapLimit(batches, llmParallelism(keyPool.all(provider === 'claude' || provider === 'codecraft' ? provider : 'gemini').length), async (batch) => {
       ctx.throwIfCanceled()
       const parts = batch.flatMap(({ f, t }) => [
         { text: `Frame t=${t}` },
@@ -164,6 +199,7 @@ export async function readScreen(p: OcrPayload, ctx: JobCtx): Promise<{ segments
       doneFrames += batch.length
       ctx.progress(15 + (80 * doneFrames) / frames.length, `Read ${doneFrames} of ${frames.length} frames`)
     })
+    }
 
     // readings → lines (OCR noise and one-sample blinks merged), then snapped to the real frames
     ctx.progress(96, 'Matching the exact start / end of every line')
@@ -189,7 +225,7 @@ export interface OcrAreaPayload {
   videoPath: string
   durationSec: number
   geminiModel: string
-  provider?: 'gemini' | 'codecraft'
+  provider?: ReaderKind
   model?: string
   epDir: string
 }
@@ -200,17 +236,20 @@ export async function findSubtitleArea(p: OcrAreaPayload, ctx: JobCtx): Promise<
   rmSync(dir, { recursive: true, force: true })
   mkdirSync(dir, { recursive: true })
   try {
-    const n = 6
+    const n = p.provider === 'offline' ? 10 : 6
     const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = []
+    const files: string[] = []
     for (let i = 0; i < n; i++) {
       ctx.throwIfCanceled()
       const t = Math.max(0, ((i + 0.5) / n) * (p.durationSec || 60))
       const out = join(dir, `a${i}.jpg`)
       const r = await runFfmpeg(['-y', '-ss', t.toFixed(2), '-i', p.videoPath, '-frames:v', '1', '-vf', "scale='min(720,iw)':-2", '-q:v', '5', out], { signal: ctx.signal })
       if (r.code !== 0) continue
+      files.push(out)
       parts.push({ inlineData: { mimeType: 'image/jpeg', data: readFileSync(out).toString('base64') } })
     }
     if (!parts.length) throw new Error('Could not sample frames from the video')
+    if (p.provider === 'offline') return bandFromBoxes((await offlineRead(files, ctx, [20, 100])).map((r) => r.lines))
     parts.push({
       text:
         'These are frames from one video. Find the horizontal band where burned-in SUBTITLE text appears (not logos, watermarks or UI). ' +

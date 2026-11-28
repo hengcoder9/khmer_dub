@@ -5,6 +5,7 @@ import { DEFAULT_CLAUDE_MODEL, type Translator } from '@shared/types'
 
 export type Theme = 'dark' | 'light' | 'system'
 export type Lang = 'en' | 'km'
+export type ScreenReader = 'gemini' | 'claude' | 'codecraft' | 'offline'
 export type Accent = 'cyan' | 'teal' | 'blue' | 'violet' | 'orange' | 'rose' | 'emerald'
 export const ACCENTS: Accent[] = ['cyan', 'violet', 'teal', 'blue', 'orange', 'rose', 'emerald']
 
@@ -26,7 +27,8 @@ interface SettingsState {
   claudeWorkspaceId: string
   codecraftModel: string
   /** which AI reads on-screen subtitles */
-  screenReader: 'gemini' | 'codecraft'
+  /** who reads on-screen subtitles: an AI with a key, or the offline engine on this PC */
+  screenReader: ScreenReader
   claudeModel: string
   defaultMale: string
   defaultFemale: string

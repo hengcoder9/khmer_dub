@@ -5,7 +5,8 @@ import { CheckCircle2, Loader2, Plus, Trash2, XCircle, FlaskConical } from 'luci
 import type { KeyEntry } from '@shared/types'
 import { Button } from '@/components/ui/button'
 import { Field, Input, Select } from '@/components/ui/controls'
-import { useSettings } from '@/store/settings'
+import { useSettings, type ScreenReader } from '@/store/settings'
+import { SCREEN_READERS } from '@/features/project/ReadScreenDialog'
 import { refreshKeyStats, useJobs } from '@/store/jobs'
 import { post } from '@/lib/api'
 import { codecraftDashboard } from '@shared/urls'
@@ -261,11 +262,8 @@ function CodeCraftSection({ keys, setKeys }: { keys: KeyEntry[]; setKeys: (k: Ke
         <Field label={t('cc.screen', 'Read Screen uses')}>
           <Select
             value={s.screenReader}
-            onChange={(v) => s.set({ screenReader: v as 'gemini' | 'codecraft' })}
-            options={[
-              { value: 'gemini', label: 'Google Gemini' },
-              { value: 'codecraft', label: 'CodeCraft' }
-            ]}
+            onChange={(v) => s.set({ screenReader: v as ScreenReader })}
+            options={SCREEN_READERS}
           />
         </Field>
       </div>
