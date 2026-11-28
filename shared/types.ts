@@ -201,12 +201,20 @@ export interface Segment {
 }
 
 export type Gender = 'male' | 'female' | 'unknown'
+/** how old a voice sounds: child (boy / girl) · teen · adult · senior (old man / old woman) */
+export type AgeGroup = 'child' | 'teen' | 'adult' | 'senior'
 
 export interface Actor {
   id: string
   label: string
   name?: string
   gender: Gender
+  /** detected (or set) age of the voice; missing = adult */
+  age?: AgeGroup
+  /** gender / age were set by hand: a new detection keeps them */
+  ageManual?: boolean
+  /** median voice pitch (Hz) from speaker detection */
+  f0?: number
   voiceId?: string
   lines: number
   totalSec: number

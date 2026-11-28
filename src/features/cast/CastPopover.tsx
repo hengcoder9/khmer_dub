@@ -1,19 +1,21 @@
 import { useState } from 'react'
+import { autoMatchVoices } from '@shared/cast'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Loader2, Merge, Play, Plus, Trash2, Users, Wand2, Check } from 'lucide-react'
-import type { Actor } from '@shared/types'
+import { Loader2, Merge, Play, Plus, Trash2, Users, Wand2, Check, ScanFace } from 'lucide-react'
+import type { Actor, AgeGroup } from '@shared/types'
 import { ACTOR_COLORS } from '@shared/defaults'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/controls'
 import { mutate, useActiveEpisode, useProject, updateEpisode } from '@/store/project'
 import { useSettings } from '@/store/settings'
 import { useVoices } from '@/lib/hooks'
-import { addActor, autoMatchCast, diarize, fillVoices, generateVoices, notify, refreshCastStats, tidyActors } from '@/lib/pipeline'
+import { addActor, autoMatchCast, detectVoices, diarize, fillVoices, generateVoices, notify, refreshCastStats, tidyActors } from '@/lib/pipeline'
 import { mediaUrl, post } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 const GENDERS: Actor['gender'][] = ['male', 'female', 'unknown']
+const AGES: AgeGroup[] = ['child', 'teen', 'adult', 'senior']
 
 export function CastPopover() {
   const { t } = useTranslation()
@@ -91,6 +93,15 @@ export function CastPopover() {
           >
             <Merge /> {t('cast.tidy', 'Tidy')}
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={run('who', () => detectVoices())}
+            disabled={!!busy || !cast.length || !ep?.segments.some((x) => x.actorId)}
+            title={t('cast.whoHint', 'AI listens to every actor: man / woman / boy / girl / teen / old — and gives each a matching voice')}
+          >
+            {busy === 'who' ? <Loader2 className="animate-spin" /> : <ScanFace />} {t('cast.who', 'Who is speaking?')}
+          </Button>
           <Button size="sm" variant="outline" onClick={run('match', autoMatchCast)} disabled={!!busy || !cast.length}>
             <Wand2 /> {t('cast.autoMatch', 'Auto-match')}
           </Button>
@@ -119,13 +130,32 @@ export function CastPopover() {
                 {GENDERS.map((g) => (
                   <button
                     key={g}
-                    onClick={() => patch(a.id, { gender: g })}
+                    onClick={() => patch(a.id, { gender: g, ageManual: true })}
                     className={cn('px-2 py-1', a.gender === g ? (g === 'male' ? 'bg-sky-500 text-white' : g === 'female' ? 'bg-pink-500 text-white' : 'bg-secondary') : 'hover:bg-accent')}
                   >
                     {g === 'male' ? '♂' : g === 'female' ? '♀' : '?'}
                   </button>
                 ))}
               </div>
+              <select
+                className="h-7 w-[92px] shrink-0 rounded border bg-background px-1 text-xs"
+                value={a.age ?? 'adult'}
+                title={a.ageManual ? t('cast.ageManual', 'Set by you — "Who is speaking?" keeps it') : t('cast.ageAuto', 'Detected — change it if it is wrong')}
+                onChange={(e) => {
+                  // the actor's voice follows the new age (a boy gets the "Boy" voice…)
+                  const age = e.target.value as AgeGroup
+                  const lang = useProject.getState().project?.settings.targetLang
+                  const next = cast.map((x) => (x.id === a.id ? { ...x, age } : x))
+                  const voiceId = autoMatchVoices(next, voices.filter((v) => !v.id.startsWith('default:')), lang).find((x) => x.id === a.id)?.voiceId
+                  patch(a.id, { age, ageManual: true, ...(voiceId ? { voiceId } : {}) })
+                }}
+              >
+                {AGES.map((g) => (
+                  <option key={g} value={g}>
+                    {ageLabel(t, g, a.gender)}
+                  </option>
+                ))}
+              </select>
               <select
                 className="h-7 min-w-0 flex-1 rounded border bg-background px-1 text-xs"
                 value={a.voiceId ?? ''}
@@ -188,4 +218,20 @@ export function CastPopover() {
       </PopoverContent>
     </Popover>
   )
+}
+
+/** "Boy" / "Girl" / "Old man"… from age + gender. */
+export function ageLabel(t: (k: string, d: string) => string, age: AgeGroup, gender: Actor['gender']): string {
+  const f = gender === 'female'
+  const m = gender === 'male'
+  switch (age) {
+    case 'child':
+      return f ? t('cast.girl', 'Girl') : m ? t('cast.boy', 'Boy') : t('cast.child', 'Child')
+    case 'teen':
+      return t('cast.teen', 'Teen')
+    case 'senior':
+      return f ? t('cast.oldWoman', 'Old woman') : m ? t('cast.oldMan', 'Old man') : t('cast.senior', 'Older')
+    default:
+      return f ? t('cast.woman', 'Woman') : m ? t('cast.man', 'Man') : t('cast.adult', 'Adult')
+  }
 }

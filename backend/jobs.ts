@@ -15,6 +15,7 @@ import { download, type DownloadPayload } from './pipeline/download'
 import { polish, type PolishPayload } from './pipeline/polish'
 import { genVideo, type GenVideoPayload } from './pipeline/genvideo'
 import { makeThumbnails, type ThumbPayload } from './pipeline/thumbnail'
+import { detectCastVoices, type CastVoicePayload } from './pipeline/castvoice'
 import { renderStory, type StoryPayload } from './pipeline/story'
 import { getPeaks } from './lib/peaks'
 
@@ -42,6 +43,7 @@ export function registerAllJobs() {
   registerJob<DownloadPayload>('download', { lane: 'net', label: () => 'Download video from link', run: download })
   registerJob<PolishPayload>('polish', { lane: 'net', label: (p) => `Polish ${p.items.length} lines for voice (${p.provider})`, run: polish })
   registerJob<GenVideoPayload>('genvideo', { lane: 'net', label: (p) => `AI Video from prompt (${p.seconds}s ${p.aspect})`, run: genVideo })
+  registerJob<CastVoicePayload>('castvoice', { lane: 'net', label: (p) => `Who is speaking? (${p.actors.length} voices: man / woman / boy / girl / old)`, run: detectCastVoices })
   registerJob<ThumbPayload>('thumbnail', { lane: 'net', label: (p) => `AI Thumbnail (${p.mode === 'ai' ? 'Gemini' : 'video frame'}, ${p.aspect})`, run: makeThumbnails })
   registerJob<StoryPayload>('story', { lane: 'cpu', label: (p) => `Claude Video: ${p.plan.scenes.length} scenes`, run: renderStory })
   registerJob<OcrPayload>('ocr', { lane: 'net', label: () => 'Read screen subtitles', run: readScreen })

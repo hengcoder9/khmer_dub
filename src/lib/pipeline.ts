@@ -1,13 +1,13 @@
 // Renderer-side orchestration: build job payloads from project state, apply results back (undoable).
 
 import { toast } from 'sonner'
-import type { Actor, Aspect, Episode, MediaInfo, Segment, SttEngine, Translator, Voice } from '@shared/types'
+import type { Actor, AgeGroup, Aspect, Episode, MediaInfo, Segment, SttEngine, Translator, Voice } from '@shared/types'
 import { CAPTION_PRESETS, DEFAULT_CAPTIONS } from '@shared/captions'
 import type { StoryBackground, StoryPlan, StoryStyle } from '@shared/story'
 import { needsPolish, spokenText } from '@shared/voicetext'
 import type { RawSeg } from '@shared/segments'
 import type { TResult } from '@shared/translate'
-import { actorStats, autoMatchVoices, matchSpeakers, tidyCast } from '@shared/cast'
+import { actorStats, autoMatchVoices, matchSpeakers, tidyCast, voiceAge } from '@shared/cast'
 import { episodeLabel, newEpisode, newSegment, uid } from '@shared/defaults'
 import { dubSpans, effectiveClips, mapCuesToOutput, outputDuration } from '@shared/ranges'
 import { mergeListenRead } from '@shared/screenmerge'
@@ -252,7 +252,7 @@ export async function separateVocals(epId?: string) {
 
 // ───────── transcription ─────────
 
-function applyCastFromSpeakers(epId: string, speakers: Array<{ id: string; gender: Actor['gender']; embedding?: number[] }>, assign: Record<string, string>) {
+function applyCastFromSpeakers(epId: string, speakers: Array<{ id: string; gender: Actor['gender']; embedding?: number[]; f0?: number }>, assign: Record<string, string>) {
   mutate((p) => {
     const { mapping, cast } = matchSpeakers(speakers, p.cast)
     const episodes = p.episodes.map((e) =>
@@ -362,7 +362,7 @@ export async function diarize(epId?: string) {
   const e = ep(epId)
   needVideo(e)
   if (!e.segments.length) throw new Error('Transcribe first')
-  const r = await runJob<{ assign: Record<string, string>; speakers: Array<{ id: string; gender: Actor['gender']; embedding: number[] }> }>(
+  const r = await runJob<{ assign: Record<string, string>; speakers: Array<{ id: string; gender: Actor['gender']; embedding: number[]; f0?: number }> }>(
     'diarize',
     {
       videoPath: e.videoPath,
@@ -375,8 +375,56 @@ export async function diarize(epId?: string) {
   )
   applyCastFromSpeakers(e.id, r.speakers, r.assign)
   const n = tidyActors()
+  // man / woman / boy / girl / old — then a matching voice for each
+  const judged = await detectVoices(e.id, { quiet: true }).catch((err) => {
+    toast.warning(`Couldn't judge the voices' age (${(err as Error).message.split(/\r?\n/)[0]}) — men / women only`)
+    return 0
+  })
   await fillVoices()
-  toast.success(`Found ${n} speakers`)
+  toast.success(judged ? `Found ${n} speakers — voices matched by gender and age` : `Found ${n} speakers`)
+}
+
+/**
+ * Who is speaking: for every actor with lines in this episode, Gemini listens to a short sample and says
+ * man / woman and child / teen / adult / senior (pitch only without a Gemini key). Actors set by hand are kept.
+ * Actors whose voice no longer fits get a new matching one. Returns how many actors were judged.
+ */
+export async function detectVoices(epId?: string, o: { quiet?: boolean } = {}): Promise<number> {
+  const e = ep(epId)
+  needVideo(e)
+  const p = P().project!
+  const actors = p.cast
+    .filter((a) => !a.ageManual)
+    .map((a) => ({ id: a.id, gender: a.gender, f0: a.f0, ranges: e.segments.filter((s) => s.actorId === a.id).map((s) => ({ start: s.start, end: s.end })) }))
+    .filter((a) => a.ranges.length)
+  if (!actors.length) {
+    if (!o.quiet) toast.info('No actors with lines to judge in this episode')
+    return 0
+  }
+  const r = await runJob<{ actors: Array<{ id: string; gender: Actor['gender']; age: AgeGroup; by: 'ai' | 'pitch' }> }>(
+    'castvoice',
+    { videoPath: e.videoPath, epDir: epDir(e), durationSec: e.durationSec, vocalsPath: e.stems.vocals, actors, geminiModel: S().geminiModel },
+    e.id
+  )
+  const res = new Map(r.actors.map((a) => [a.id, a]))
+  const voices = (await loadVoices().catch(() => [] as Voice[])).filter((v) => !v.id.startsWith('default:'))
+  mutate((pp) => {
+    const cast = pp.cast.map((a) => {
+      const x = res.get(a.id)
+      return x && !a.ageManual ? { ...a, gender: x.gender, age: x.age } : a
+    })
+    // a voice that no longer fits (wrong gender or age) is replaced by a matching one
+    const lang = pp.settings.targetLang
+    const matched = autoMatchVoices(cast, voices, lang)
+    const fits = (a: Actor) => {
+      const v = voices.find((x) => x.id === a.voiceId)
+      return !!v && (a.gender === 'unknown' || v.gender === a.gender) && voiceAge(v) === (a.age ?? 'adult')
+    }
+    return { ...pp, cast: cast.map((a, i) => (res.has(a.id) && !a.ageManual && !fits(a) ? { ...a, voiceId: matched[i].voiceId } : a)) }
+  })
+  const ai = r.actors.filter((a) => a.by === 'ai').length
+  if (!o.quiet) toast.success(ai ? `Judged ${r.actors.length} voices with AI (man / woman / boy / girl / old)` : `Judged ${r.actors.length} voices by pitch (add a Gemini key for boy / girl / old)`)
+  return r.actors.length
 }
 
 /** Merge actors with only a few lines into the closest main actor (speaker detection over-splits). Returns the cast size. */

@@ -1,6 +1,6 @@
 // Cast helpers: actor stats, cross-episode speaker matching, voice auto-match (pure, unit tested).
 
-import type { Actor, Gender, Segment, Voice } from './types'
+import type { Actor, AgeGroup, Gender, Segment, Voice } from './types'
 
 export function cosine(a: number[], b: number[]): number {
   let dot = 0
@@ -18,6 +18,7 @@ export interface DetectedSpeaker {
   id: string // worker/Gemini label, e.g. "S0" or "A1"
   gender: Gender
   embedding?: number[]
+  f0?: number
 }
 
 /**
@@ -56,10 +57,11 @@ export function matchSpeakers(
       mapping[s.id] = best.id
       used.add(best.id)
       if (best.gender === 'unknown') best.gender = s.gender
+      if (s.f0 && !best.f0) best.f0 = s.f0
       continue
     }
     const id = `A${next++}`
-    out.push({ id, label: id, gender: s.gender, lines: 0, totalSec: 0, sampleText: '', embedding: s.embedding })
+    out.push({ id, label: id, gender: s.gender, lines: 0, totalSec: 0, sampleText: '', embedding: s.embedding, ...(s.f0 ? { f0: s.f0 } : {}) })
     mapping[s.id] = id
     used.add(id)
   }
@@ -81,28 +83,47 @@ export function actorStats(cast: Actor[], segments: Segment[]): Actor[] {
 }
 
 /** Give male actors distinct male voices and female actors distinct female voices (round-robin). */
+/** The age a voice sounds like: its variant (Boy, Girl, Teen, Old, Grandma…), else adult. */
+export function voiceAge(v: Pick<Voice, 'id' | 'gender'>): AgeGroup {
+  if (!v.id.includes('#')) return 'adult'
+  const { pitch, rate } = parseVoiceVariant(v.id)
+  const label = VOICE_VARIANTS[v.gender]?.find(([, p, r]) => p === pitch && r === rate)?.[0]
+  return label ? VARIANT_AGE[label] ?? 'adult' : 'adult'
+}
+
+/** Ages to try for an actor, nearest first. */
+const AGE_ORDER: Record<AgeGroup, AgeGroup[]> = {
+  child: ['child', 'teen', 'adult'],
+  teen: ['teen', 'child', 'adult'],
+  adult: ['adult', 'teen', 'senior'],
+  senior: ['senior', 'adult']
+}
+
+/**
+ * Give every actor a voice of the same gender and age (boy → "Boy", old woman → "Grandma"…), each actor a
+ * different voice where possible; actors with more lines choose first. A child of unknown gender gets a girl's voice
+ * (children's voices sound alike), any other unknown gender a voice from both.
+ */
 export function autoMatchVoices(cast: Actor[], voices: Voice[], locale?: string): Actor[] {
-  const pick = (g: Gender) => {
-    const pool = voices.filter((v) => v.gender === g && (!locale || v.locale.toLowerCase().startsWith(locale.toLowerCase())))
-    return pool.length ? pool : voices.filter((v) => v.gender === g)
-  }
-  const male = pick('male')
-  const female = pick('female')
-  let mi = 0
-  let fi = 0
-  let ui = 0
-  // actors with more lines get the first (usually best) voices
+  const inLocale = voices.filter((v) => !locale || v.locale.toLowerCase().startsWith(locale.toLowerCase()))
+  const base = inLocale.length ? inLocale : voices
+  const used = new Map<string, number>()
   const order = [...cast].sort((a, b) => b.lines - a.lines)
   const assigned = new Map<string, string | undefined>()
   for (const a of order) {
-    let v: Voice | undefined
-    if (a.gender === 'female') v = female[fi++ % Math.max(1, female.length)]
-    else if (a.gender === 'male') v = male[mi++ % Math.max(1, male.length)]
-    else {
-      const both = [...male, ...female]
-      v = both[ui++ % Math.max(1, both.length)]
+    const age = a.age ?? 'adult'
+    const genders: Gender[] = a.gender === 'unknown' ? (age === 'child' ? ['female', 'male'] : ['male', 'female']) : [a.gender]
+    let pick: Voice | undefined
+    for (const ag of AGE_ORDER[age]) {
+      const pool = base.filter((v) => genders.includes(v.gender) && voiceAge(v) === ag)
+      if (!pool.length) continue
+      // the least-used voice of this kind (ties: the list order, i.e. the best voices first)
+      pick = pool.reduce((m, v) => ((used.get(v.id) ?? 0) < (used.get(m.id) ?? 0) ? v : m), pool[0])
+      break
     }
-    assigned.set(a.id, v?.id)
+    pick ??= base.find((v) => genders.includes(v.gender)) ?? base[0]
+    if (pick) used.set(pick.id, (used.get(pick.id) ?? 0) + 1)
+    assigned.set(a.id, pick?.id)
   }
   return cast.map((a) => ({ ...a, voiceId: assigned.get(a.id) ?? a.voiceId }))
 }
@@ -142,6 +163,14 @@ export const VOICE_VARIANTS: Record<Gender, Array<[string, number, number]>> = {
     ['Grandma', -26, 0.87]
   ],
   unknown: []
+}
+
+/** Which age group each variant sounds like (for auto-match by age). */
+export const VARIANT_AGE: Record<string, AgeGroup> = {
+  Deep: 'adult', Calm: 'adult', Strong: 'adult', Soft: 'adult', Warm: 'adult', Bright: 'adult',
+  Young: 'teen', Teen: 'teen',
+  Boy: 'child', Girl: 'child',
+  Old: 'senior', Grandpa: 'senior', Mature: 'senior', Grandma: 'senior'
 }
 
 /** Base voice first, then its variants, so auto-match gives every actor a different sound. */
