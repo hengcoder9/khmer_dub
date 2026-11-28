@@ -23,18 +23,22 @@ export function Layout() {
     <div className="flex h-full flex-col">
       <TopBar />
 
+      {/* tool ribbon */}
+      <div className="studio-card mx-2 mt-2 shrink-0 px-1.5 py-0.5">
+        <ToolButtons />
+      </div>
+
       <div className="flex min-h-0 flex-1 gap-2 p-2 pb-0">
         <aside
-          className={cn('studio-card flex shrink-0 flex-col gap-3 overflow-y-auto p-3 transition-[width]', big && 'w-1/2')}
+          className={cn('studio-card flex shrink-0 flex-col overflow-hidden p-1.5 transition-[width]', big && 'w-1/2')}
           style={big ? undefined : { width: playerWidth }}
         >
-          <VideoPlayer />
-          <ToolButtons />
+          <VideoPlayer fill />
         </aside>
 
         <main className="studio-card flex min-w-0 flex-1 flex-col overflow-hidden">
-          <div className="flex h-11 shrink-0 items-center gap-2 border-b px-2">
-            <div className="flex rounded-lg bg-muted p-0.5">
+          <div className="flex h-10 shrink-0 items-end gap-2 border-b px-3">
+            <div className="flex gap-4">
               {(
                 [
                   ['dub', Rows3, t('tabs.dub', 'Dubbing lines')],
@@ -45,8 +49,8 @@ export function Layout() {
                   key={id}
                   onClick={() => set({ centerTab: id })}
                   className={cn(
-                    'flex h-8 items-center gap-1.5 rounded-md px-3 text-sm transition-colors',
-                    tab === id ? 'bg-card font-medium text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                    '-mb-px flex h-10 items-center gap-1.5 border-b-2 text-sm transition-colors',
+                    tab === id ? 'border-primary font-medium text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
                   )}
                 >
                   <Icon className={cn('size-4', tab === id && 'text-primary')} />

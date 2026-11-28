@@ -5,8 +5,8 @@ import { DEFAULT_CLAUDE_MODEL, type Translator } from '@shared/types'
 
 export type Theme = 'dark' | 'light' | 'system'
 export type Lang = 'en' | 'km'
-export type Accent = 'teal' | 'blue' | 'violet' | 'orange' | 'rose' | 'emerald'
-export const ACCENTS: Accent[] = ['teal', 'blue', 'violet', 'orange', 'rose', 'emerald']
+export type Accent = 'cyan' | 'teal' | 'blue' | 'violet' | 'orange' | 'rose' | 'emerald'
+export const ACCENTS: Accent[] = ['cyan', 'violet', 'teal', 'blue', 'orange', 'rose', 'emerald']
 
 export interface Recent {
   name: string

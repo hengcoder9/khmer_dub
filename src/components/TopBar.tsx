@@ -90,23 +90,15 @@ export function TopBar() {
   const setUi = useUi((s) => s.set)
 
   return (
-    <header className="relative flex h-14 shrink-0 items-center gap-2 border-b bg-card/80 px-3 backdrop-blur-xl">
-      <div className="absolute inset-x-0 top-0 h-0.5 bg-brand opacity-80" />
-      <div className="mr-1 flex items-center gap-2.5">
-        <div className="relative grid size-9 place-items-center rounded-xl bg-brand text-primary-foreground shadow-md shadow-primary/30">
-          <AudioLines className="size-5" />
-          <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-card bg-success" />
+    <header className="relative flex h-12 shrink-0 items-center gap-2 border-b bg-card/80 px-3 backdrop-blur-xl dark:bg-card">
+      <div className="mr-1 flex items-center gap-2">
+        <div className="relative grid size-7 place-items-center rounded-lg bg-brand text-primary-foreground">
+          <AudioLines className="size-4" />
         </div>
-        <div className="leading-tight">
-          <div className="flex items-center gap-1.5">
-            <span className="font-semibold tracking-tight">{APP_NAME}</span>
-            <span className="chip border-primary/30 bg-primary/10 py-0 text-[10px] text-primary">Studio</span>
-          </div>
-          <div className="text-[10px] text-muted-foreground">{t('top.tagline', 'AI dubbing & video studio')}</div>
-        </div>
+        <span className="text-sm font-semibold tracking-tight">{APP_NAME}</span>
       </div>
       {project && (
-        <div className="ml-2 flex min-w-0 items-center gap-2 rounded-lg border bg-background/60 px-2.5 py-1">
+        <div className="ml-2 flex min-w-0 items-center gap-2 rounded-lg bg-muted/60 px-2.5 py-1">
           <span className="max-w-[22ch] truncate text-sm font-medium" title={project.name}>
             {project.name}
           </span>
@@ -152,7 +144,7 @@ export function TopBar() {
         </Button>
       )}
       {project && (
-        <Button size="sm" onClick={() => setUi({ dialog: 'export' })} title={t('top.export', 'Export')}>
+        <Button size="sm" className="bg-brand px-4 font-semibold shadow-md shadow-primary/25 hover:brightness-110" onClick={() => setUi({ dialog: 'export' })} title={t('top.export', 'Export')}>
           <CloudUpload /> {t('top.export', 'Export')}
         </Button>
       )}

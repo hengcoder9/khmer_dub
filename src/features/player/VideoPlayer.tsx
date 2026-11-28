@@ -16,7 +16,8 @@ import { setBurnSubtitles } from './burn'
 
 const ASPECT: Record<string, number> = { '16:9': 16 / 9, '9:16': 9 / 16, '1:1': 1, '4:5': 4 / 5 }
 
-export function VideoPlayer() {
+/** `fill`: grow to the height of the panel (workspace) instead of a fixed 16:9 box */
+export function VideoPlayer({ fill }: { fill?: boolean } = {}) {
   const { t } = useTranslation()
   const ep = useActiveEpisode()
   const captions = useProject((s) => s.project?.settings.captions)
@@ -369,8 +370,8 @@ export function VideoPlayer() {
   const cutHere = ep?.edit.enabled && clips.length > 0 && !clips.some((c) => time >= c.start && time < c.end)
 
   return (
-    <div ref={rootRef} className={cn('flex flex-col overflow-hidden bg-black', full ? 'h-screen w-screen' : 'rounded-lg border')}>
-      <div ref={boxRef} className={cn('relative grid place-items-center overflow-hidden', full ? 'min-h-0 flex-1' : 'aspect-video')}>
+    <div ref={rootRef} className={cn('flex flex-col overflow-hidden bg-black', full ? 'h-screen w-screen' : fill ? 'h-full rounded-lg' : 'rounded-lg border')}>
+      <div ref={boxRef} className={cn('relative grid place-items-center overflow-hidden', full || fill ? 'min-h-0 flex-1' : 'aspect-video')}>
         {src && !unsupported ? (
           <div
             className={cn('relative h-full overflow-hidden', aspect && ep?.edit.fitMode !== 'crop' && 'bg-neutral-900')}

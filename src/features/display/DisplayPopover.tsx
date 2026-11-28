@@ -24,6 +24,7 @@ const PRESETS: Preset[] = [
 ]
 
 const ACCENT_SWATCH: Record<Accent, string> = {
+  cyan: 'from-cyan-400 to-sky-500',
   violet: 'from-violet-500 to-blue-500',
   teal: 'from-teal-500 to-sky-500',
   blue: 'from-blue-500 to-cyan-400',

@@ -107,34 +107,30 @@ export function ToolButtons() {
     { key: 'source', icon: ShieldCheck, label: t('tools.source', 'Source & licence'), active: hasSource, run: () => setUi({ dialog: 'source' }) }
   ]
 
-  const cls = (active?: boolean) =>
-    cn(
-      'flex h-16 w-full flex-col items-center justify-center gap-1 rounded-md border px-1 text-xs transition-colors',
-      'hover:border-primary/60 hover:bg-accent disabled:pointer-events-none disabled:opacity-40',
-      active && 'border-primary/50 bg-primary/10 text-primary'
-    )
+  const cls = (active?: boolean) => cn('ribbon-btn relative', active && 'after:absolute after:bottom-0.5 after:h-0.5 after:w-5 after:rounded-full after:bg-primary')
 
+  // one row of icon tools across the top of the workspace (scrolls sideways on small windows)
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="flex min-w-0 items-center gap-0.5 overflow-x-auto [scrollbar-width:thin]">
       {tools.map(({ key, icon: Icon, label, run, active, needsVideo, menu }) => {
         const disabled = !!busy || (needsVideo && !ep?.videoPath)
-        const icon = busy === key ? <Loader2 className="size-5 animate-spin" /> : <Icon className="size-5" />
+        const icon = busy === key ? <Loader2 className="size-[18px] animate-spin" /> : <Icon className="size-[18px]" strokeWidth={1.8} />
         if (menu)
           return (
             <DropdownMenu key={key}>
               <DropdownTrigger asChild>
-                <button className={cls(active)} disabled={disabled} title={label}>
+                <button className={cls(active)} data-active={!!active} disabled={disabled} title={label}>
                   {icon}
-                  <span className="line-clamp-1 leading-tight">{label}</span>
+                  <span className="line-clamp-1 w-full truncate text-center">{label}</span>
                 </button>
               </DropdownTrigger>
               <DropdownContent>{menu}</DropdownContent>
             </DropdownMenu>
           )
         return (
-          <button key={key} disabled={disabled} onClick={run && wrap(key, run)} className={cls(active)} title={label}>
+          <button key={key} disabled={disabled} onClick={run && wrap(key, run)} className={cls(active)} data-active={!!active} title={label}>
             {icon}
-            <span className="line-clamp-1 leading-tight">{label}</span>
+            <span className="line-clamp-1 w-full truncate text-center">{label}</span>
           </button>
         )
       })}

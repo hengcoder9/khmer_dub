@@ -56,32 +56,35 @@
     --shadow-color: 228 40% 40%;
   }
   .dark {
-    --background: 228 30% 6%;
-    --foreground: 226 24% 93%;
-    --card: 228 26% 9%;
-    --card-foreground: 226 24% 93%;
-    --popover: 228 26% 10%;
-    --popover-foreground: 226 24% 93%;
+    /* graphite: neutral greys like modern video editors; panels sit on a darker gutter */
+    --background: 240 5% 5%;
+    --foreground: 240 6% 93%;
+    --card: 240 4% 9.5%;
+    --card-foreground: 240 6% 93%;
+    --popover: 240 4% 11%;
+    --popover-foreground: 240 6% 93%;
     --primary: 252 90% 68%;
     --primary-foreground: 0 0% 100%;
     --primary-2: 210 95% 62%;
-    --secondary: 228 20% 15%;
-    --secondary-foreground: 226 20% 90%;
-    --muted: 228 22% 12%;
-    --muted-foreground: 226 12% 62%;
-    --accent: 228 20% 16%;
-    --accent-foreground: 226 24% 95%;
+    --secondary: 240 4% 15%;
+    --secondary-foreground: 240 5% 90%;
+    --muted: 240 4% 12.5%;
+    --muted-foreground: 240 5% 62%;
+    --accent: 240 4% 16%;
+    --accent-foreground: 240 6% 96%;
     --destructive: 352 72% 58%;
     --destructive-foreground: 0 0% 100%;
     --success: 152 56% 48%;
     --warning: 36 92% 56%;
-    --border: 228 18% 17%;
-    --input: 228 18% 21%;
+    --border: 240 4% 15.5%;
+    --input: 240 4% 20%;
     --ring: 252 90% 68%;
-    --shadow-color: 228 60% 2%;
+    --shadow-color: 240 10% 1%;
   }
 
   /* accent palettes (studio colour dots) — primary + its gradient partner */
+  [data-accent='cyan'] { --primary: 188 94% 38%; --primary-2: 199 92% 48%; --ring: 188 94% 38%; }
+  .dark[data-accent='cyan'] { --primary: 186 92% 50%; --primary-2: 199 95% 60%; --ring: 186 92% 50%; --primary-foreground: 240 10% 6%; }
   [data-accent='teal'] { --primary: 174 74% 36%; --primary-2: 196 88% 46%; --ring: 174 74% 36%; }
   .dark[data-accent='teal'] { --primary: 172 66% 46%; --primary-2: 194 86% 56%; --ring: 172 66% 46%; --primary-foreground: 228 30% 8%; }
   [data-accent='blue'] { --primary: 218 90% 54%; --primary-2: 196 92% 50%; --ring: 218 90% 54%; }
@@ -110,6 +113,9 @@
     background-image:
       radial-gradient(1200px 500px at 0% -10%, hsl(var(--primary) / 0.07), transparent 60%),
       radial-gradient(900px 500px at 100% 0%, hsl(var(--primary-2) / 0.06), transparent 60%);
+  }
+  .dark body {
+    background-image: none;
   }
   input,
   textarea {
@@ -154,6 +160,25 @@
   .studio-card {
     @apply rounded-xl border bg-card;
     box-shadow: 0 1px 2px hsl(var(--shadow-color) / 0.06), 0 4px 16px -6px hsl(var(--shadow-color) / 0.1);
+  }
+  /* dark: flat panels with a hairline edge, like modern editors */
+  .dark .studio-card {
+    @apply rounded-[10px];
+    border-color: hsl(var(--border) / 0.7);
+    box-shadow: none;
+  }
+  /* one tool in the ribbon: icon over a short label */
+  .ribbon-btn {
+    @apply flex h-[52px] w-[66px] shrink-0 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[11px] leading-none text-muted-foreground transition-colors;
+  }
+  .ribbon-btn:hover {
+    @apply bg-accent text-foreground;
+  }
+  .ribbon-btn[data-active='true'] {
+    @apply text-primary;
+  }
+  .ribbon-btn:disabled {
+    @apply pointer-events-none opacity-35;
   }
   .studio-glass {
     @apply border bg-card/80 backdrop-blur-xl;
