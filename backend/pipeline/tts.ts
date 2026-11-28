@@ -115,7 +115,8 @@ async function generate(gens: Gen[], ctx: JobCtx, span: [number, number]): Promi
     // native Node client — no Python runtime needed for Edge voices
     const results = await edgeSynthBatch(
       edge.map((g) => ({ id: g.id, text: g.text, voice: g.voice, rate: edgeRate(g.speed), pitch: edgePitch(g.pitch), out: g.raw })),
-      { concurrency: 8, signal: ctx.signal, onProgress: (done, total) => ctx.progress(a + ((mid - a) * done) / total, `Edge-TTS ${done}/${total}`) }
+      // 16 lines at once: Microsoft's Khmer voices answer each line slowly (not a per-user limit), so more lanes = faster
+      { concurrency: 16, signal: ctx.signal, onProgress: (done, total) => ctx.progress(a + ((mid - a) * done) / total, `Edge-TTS ${done}/${total}`) }
     )
     for (const x of results) if (!x.ok) errors.set(x.id, x.error ?? 'Edge-TTS failed')
   }

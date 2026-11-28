@@ -247,6 +247,13 @@ export interface EdgeSynthOptions {
   signal?: AbortSignal
   /** no data for this long → fail (ms) */
   timeoutMs?: number
+  /** no audio after this long → send the same line again alongside (ms; 0 = never) */
+  hedgeMs?: number
+}
+
+interface ChunkOptions extends EdgeSynthOptions {
+  /** first audio frame arrived (the request is being served) */
+  onAudio?: () => void
 }
 
 const escapeXml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -279,7 +286,7 @@ export function splitText(text: string, maxBytes = 4096): string[] {
   return out
 }
 
-function synthChunk(ssmlText: string, o: EdgeSynthOptions): Promise<Buffer> {
+function synthChunk(ssmlText: string, o: ChunkOptions): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const url = `${WSS_URL}&ConnectionId=${randomUUID().replace(/-/g, '')}&Sec-MS-GEC=${secMsGec()}&Sec-MS-GEC-Version=${SEC_MS_GEC_VERSION}`
     const ws = new WebSocket(url, { headers: muidHeaders(WSS_HEADERS), perMessageDeflate: true })
@@ -346,8 +353,81 @@ function synthChunk(ssmlText: string, o: EdgeSynthOptions): Promise<Buffer> {
       const headers = data.subarray(2, 2 + headerLen).toString('utf8')
       if (!/^Path:audio\r?$/m.test(headers)) return
       const body = data.subarray(2 + headerLen)
-      if (body.length) parts.push(body)
+      if (body.length) {
+        if (!parts.length) o.onAudio?.()
+        parts.push(body)
+      }
     })
+  })
+}
+
+const HEDGE_IN_FLIGHT = 3
+const HEDGE_ATTEMPTS = 8
+
+/**
+ * One chunk, hedged. Microsoft's busy voices (the Khmer ones especially) often accept a line, stay silent ~3 s and then
+ * drop the connection (1006), while the same line sent again is answered in under a second. So: if no audio has
+ * arrived after `hedgeMs`, or an attempt is dropped, the line goes out again alongside; the first complete answer wins.
+ */
+export function synthHedged(ssmlText: string, o: EdgeSynthOptions, chunk: (t: string, o: ChunkOptions) => Promise<Buffer> = synthChunk): Promise<Buffer> {
+  const hedgeMs = o.hedgeMs ?? 1200
+  if (!hedgeMs) return chunk(ssmlText, o)
+  return new Promise((resolve, reject) => {
+    const ctrls: AbortController[] = []
+    let attempts = 0
+    let inFlight = 0
+    let streaming = 0
+    let settled = false
+    let lastErr: Error | undefined
+    let timer: NodeJS.Timeout | undefined
+    const end = (err: Error | undefined, buf?: Buffer) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      o.signal?.removeEventListener('abort', onUserAbort)
+      for (const c of ctrls) c.abort()
+      if (err) reject(err)
+      else resolve(buf!)
+    }
+    const onUserAbort = () => end(new CanceledError())
+    if (o.signal?.aborted) return onUserAbort()
+    o.signal?.addEventListener('abort', onUserAbort)
+
+    const launch = () => {
+      if (settled || attempts >= HEDGE_ATTEMPTS || inFlight >= HEDGE_IN_FLIGHT) return
+      attempts++
+      inFlight++
+      const ac = new AbortController()
+      ctrls.push(ac)
+      let mine = false
+      chunk(ssmlText, {
+        ...o,
+        signal: ac.signal,
+        onAudio: () => {
+          mine = true
+          streaming++
+          clearTimeout(timer)
+        }
+      }).then(
+        (buf) => end(undefined, buf),
+        (e: Error & { status?: number }) => {
+          inFlight--
+          if (mine) streaming--
+          if (settled || e instanceof CanceledError) return
+          lastErr = e
+          // a refused handshake (clock / token) is not a busy voice: hand it to the caller at once
+          if (e.status) return end(e)
+          if (attempts < HEDGE_ATTEMPTS) {
+            if (!streaming || !inFlight) launch()
+          } else if (!inFlight) end(lastErr)
+        }
+      )
+      clearTimeout(timer)
+      timer = setTimeout(() => {
+        if (!streaming) launch()
+      }, hedgeMs)
+    }
+    launch()
   })
 }
 
@@ -358,11 +438,11 @@ export async function edgeSynthesize(text: string, o: EdgeSynthOptions): Promise
   const out: Buffer[] = []
   for (const chunk of chunks) {
     try {
-      out.push(await synthChunk(chunk, o))
+      out.push(await synthHedged(chunk, o))
     } catch (e) {
       const err = e as Error & { status?: number; date?: string }
       if (err.status !== 403 || !adjustSkew(err.date)) throw err
-      out.push(await synthChunk(chunk, o)) // retry once with corrected clock
+      out.push(await synthHedged(chunk, o)) // retry once with corrected clock
     }
   }
   return Buffer.concat(out)
@@ -381,7 +461,7 @@ export interface EdgeBatchItem {
 /** Synthesize many lines concurrently with retries; writes each MP3 atomically to `out`. */
 export async function edgeSynthBatch(
   items: EdgeBatchItem[],
-  opts: { concurrency?: number; retries?: number; signal?: AbortSignal; onProgress?: (done: number, total: number) => void } = {}
+  opts: { concurrency?: number; retries?: number; hedgeMs?: number; signal?: AbortSignal; onProgress?: (done: number, total: number) => void } = {}
 ): Promise<Array<{ id: string; ok: boolean; error?: string }>> {
   const results: Array<{ id: string; ok: boolean; error?: string }> = new Array(items.length)
   const retries = opts.retries ?? 4
@@ -395,7 +475,7 @@ export async function edgeSynthBatch(
       for (let attempt = 0; attempt < retries; attempt++) {
         if (opts.signal?.aborted) throw new CanceledError()
         try {
-          const audio = await edgeSynthesize(it.text, { voice: it.voice, rate: it.rate, pitch: it.pitch, volume: it.volume, signal: opts.signal })
+          const audio = await edgeSynthesize(it.text, { voice: it.voice, rate: it.rate, pitch: it.pitch, volume: it.volume, hedgeMs: opts.hedgeMs, signal: opts.signal })
           if (audio.length < 200) throw new Error('empty audio returned')
           mkdirSync(dirname(it.out), { recursive: true })
           const tmp = `${it.out}.part`
@@ -407,13 +487,13 @@ export async function edgeSynthBatch(
           last = e as Error
           rmSync(`${it.out}.part`, { force: true })
           if (opts.signal?.aborted) throw new CanceledError()
-          await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)))
+          await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)))
         }
       }
       results[i] = last ? { id: it.id, ok: false, error: last.message } : { id: it.id, ok: true }
       opts.onProgress?.(++done, items.length)
     }
   }
-  await Promise.all(Array.from({ length: Math.max(1, Math.min(opts.concurrency ?? 8, 10, items.length)) }, worker))
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(opts.concurrency ?? 8, 16, items.length)) }, worker))
   return results
 }
