@@ -1,4 +1,7 @@
 import { mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import { spawn } from 'node:child_process'
+import { binPath } from '../lib/paths'
+import { maskChange, mergeReadings, refineWithScan, textMask, type ScanFrame } from '../../shared/ocrtiming'
 import { join } from 'node:path'
 import { chunk } from '../../shared/translate'
 import { runFfmpeg } from '../lib/ffmpeg'
@@ -44,6 +47,41 @@ export interface OcrPayload {
   model?: string
 }
 
+const SCAN_FPS = 10
+const SCAN_W = 480
+const SCAN_H = 64
+
+/**
+ * Pixel scan of the subtitle band at 10 fps: how much the "text pixels" changed from the previous frame.
+ * Streams raw greyscale frames from ffmpeg (nothing kept in memory but the last mask).
+ */
+export function scanBand(videoPath: string, top: number, keep: number, signal?: AbortSignal): Promise<ScanFrame[]> {
+  return new Promise((resolve, reject) => {
+    const vf = `fps=${SCAN_FPS},crop=iw:ih*${keep.toFixed(3)}:0:ih*${top.toFixed(3)},scale=${SCAN_W}:${SCAN_H}:flags=area,format=gray`
+    const child = spawn(binPath('ffmpeg').path, ['-hide_banner', '-nostdin', '-v', 'error', '-i', videoPath, '-an', '-vf', vf, '-f', 'rawvideo', '-pix_fmt', 'gray', 'pipe:1'], { windowsHide: true, signal })
+    const size = SCAN_W * SCAN_H
+    const out: ScanFrame[] = []
+    let buf: Buffer = Buffer.alloc(0)
+    let prev: Uint8Array | null = null
+    let i = 0
+    child.stdout.on('data', (chunk: Buffer) => {
+      buf = buf.length ? Buffer.concat([buf, chunk]) : chunk
+      while (buf.length >= size) {
+        const mask = textMask(new Uint8Array(buf.buffer, buf.byteOffset, size), SCAN_W, SCAN_H)
+        buf = buf.subarray(size)
+        const c = prev ? maskChange(prev, mask) : { score: 0, union: 0 }
+        out.push({ t: Math.round((i / SCAN_FPS) * 100) / 100, ...c })
+        prev = mask
+        i++
+      }
+    })
+    let err = ''
+    child.stderr.on('data', (d) => (err = (err + d).slice(-2000)))
+    child.on('error', reject)
+    child.on('close', (code) => (code === 0 || out.length ? resolve(out) : reject(new Error(`Pixel scan failed: ${err.trim().slice(-300)}`))))
+  })
+}
+
 /** "Read Screen": sample frames, read hard-coded subtitles with Gemini vision, merge into timed lines. */
 export async function readScreen(p: OcrPayload, ctx: JobCtx): Promise<{ segments: Array<RawSeg & { thumb?: string }> }> {
   const dir = join(p.epDir, 'ocr_frames')
@@ -64,6 +102,12 @@ export async function readScreen(p: OcrPayload, ctx: JobCtx): Promise<{ segments
     const times = frames.map((_, i) => Math.round(i * interval * 100) / 100)
     const reads = new Map<number, string>()
     const batches = chunk(frames.map((f, i) => ({ f, t: times[i] })), 24)
+
+    // exact timing: scan the subtitle band frame by frame while the AI reads (a failed scan just keeps midpoints)
+    const scanning = scanBand(p.videoPath, top, keep, ctx.signal).catch((e) => {
+      ctx.log(`Timing scan skipped: ${(e as Error).message}`)
+      return [] as ScanFrame[]
+    })
 
     let doneFrames = 0
     ctx.progress(15, `Reading ${frames.length} frames`)
@@ -96,26 +140,21 @@ export async function readScreen(p: OcrPayload, ctx: JobCtx): Promise<{ segments
       ctx.progress(15 + (80 * doneFrames) / frames.length, `Read ${doneFrames} of ${frames.length} frames`)
     })
 
-    // merge consecutive identical readings into segments
-    const norm = (s: string) => s.replace(/\s+/g, ' ').trim()
-    const segs: Array<RawSeg & { thumb?: string }> = []
-    let cur: (RawSeg & { thumb?: string }) | null = null
+    // readings → lines (OCR noise and one-sample blinks merged), then snapped to the real frames
+    ctx.progress(96, 'Matching the exact start / end of every line')
+    const lines = refineWithScan(
+      mergeReadings(times.map((t) => ({ t, text: reads.get(t) ?? '' })), interval),
+      await scanning,
+      interval,
+      p.durationSec
+    )
     const thumbOf = (t: number) => {
       if (!p.thumbs) return undefined
       const i = times.indexOf(t)
       return i < 0 ? undefined : `data:image/jpeg;base64,${readFileSync(join(dir, frames[i])).toString('base64')}`
     }
-    for (const t of times) {
-      const text = norm(reads.get(t) ?? '')
-      if (cur && text && norm(cur.text) === text) {
-        cur.end = Math.min(p.durationSec || t + interval, t + interval)
-        continue
-      }
-      if (cur) segs.push(cur)
-      cur = text ? { start: t, end: Math.min(p.durationSec || t + interval, t + interval), text, thumb: thumbOf(t) } : null
-    }
-    if (cur) segs.push(cur)
-    return { segments: segs.filter((s) => s.end - s.start >= Math.min(0.5, interval)) }
+    const segs: Array<RawSeg & { thumb?: string }> = lines.map((l) => ({ start: l.start, end: l.end, text: l.text, thumb: thumbOf(l.firstT) }))
+    return { segments: segs }
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
