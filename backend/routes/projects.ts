@@ -30,6 +30,19 @@ export async function projectRoutes(app: FastifyInstance) {
    * Home screen: every project in the projects folder plus the given (recent) folders, newest first, with a
    * small thumbnail from the first episode's video. Reads project.json only — nothing is opened or changed.
    */
+  /** A built-in sticker (rasterised by the app) saved into the project's "stickers" folder. */
+  app.post<{ Body: { dir: string; name: string; dataUrl: string } }>('/projects/sticker', async (req, reply) => {
+    const m = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(req.body?.dataUrl ?? '')
+    if (!req.body?.dir || !m) return reply.code(400).send({ error: 'dir and a PNG data URL required' })
+    if (m[1].length > 8_000_000) return reply.code(413).send({ error: 'Sticker too large' })
+    const folder = join(resolve(req.body.dir), 'stickers')
+    mkdirSync(folder, { recursive: true })
+    const file = join(folder, `${safeName(req.body.name || 'sticker').replace(/\s+/g, '-')}.png`)
+    writeFileSync(file, Buffer.from(m[1], 'base64'))
+    allowFile(file)
+    return { path: file }
+  })
+
   app.post<{ Body: { dir: string; name: string } }>('/projects/rename', async (req, reply) => {
     const file = join(resolve(req.body?.dir ?? ''), 'project.json')
     const name = String(req.body?.name ?? '').trim().slice(0, 120)

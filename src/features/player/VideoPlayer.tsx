@@ -12,6 +12,7 @@ import { CaptionPreview } from './CaptionPreview'
 import { WatermarkLayer } from '@/features/project/WatermarkLayer'
 import { SubCoverLayer } from '@/features/project/SubCoverLayer'
 import { BannerLayer } from '@/features/project/BannerLayer'
+import { OverlayLayer } from '@/features/project/OverlayLayer'
 import { setBurnSubtitles } from './burn'
 
 const ASPECT: Record<string, number> = { '16:9': 16 / 9, '9:16': 9 / 16, '1:1': 1, '4:5': 4 / 5 }
@@ -413,6 +414,8 @@ export function VideoPlayer({ fill }: { fill?: boolean } = {}) {
             </div>
             {/* banner ads on their schedule */}
             {banners && banners.length > 0 && <BannerLayer banners={banners} time={time} />}
+            {/* stickers and text: drag to move, corner to resize */}
+            {ep?.overlays && ep.overlays.length > 0 && <OverlayLayer epId={ep.id} overlays={ep.overlays} time={time} />}
             {/* logo and/or text watermark, animated like the export */}
             {wm && (wmUrl || wm.text?.trim()) && <WatermarkLayer wm={wm} imageUrl={wmUrl} />}
             {dip > 0 && <div className="pointer-events-none absolute inset-0 bg-black" style={{ opacity: dip }} />}

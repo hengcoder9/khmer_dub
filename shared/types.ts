@@ -1,6 +1,7 @@
 // Types shared by electron main/preload, backend and renderer.
 
 import type { VoiceFx } from './fx'
+import type { Overlay } from './overlays'
 
 export const APP_NAME = 'KhmerDub Studio'
 /** Where users get news and help */
@@ -315,6 +316,8 @@ export interface Episode {
   voiceTrack?: string
   /** sound effects placed on this episode */
   sfx?: SfxItem[]
+  /** stickers and styled text on this episode */
+  overlays?: Overlay[]
   exports?: string[]
   segments: Segment[]
   status: EpisodeStatus

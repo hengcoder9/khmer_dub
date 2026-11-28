@@ -2,6 +2,7 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, u
 import { join } from 'node:path'
 import type { AdsSettings, AdVideo, Aspect, CaptionStyle, Clip, SubCover, Watermark } from '../../shared/types'
 import { bannerEnable, bannersOn, bannerXY, mapCuesThroughAds, planAds, videoAdsOn, type AdPlan } from '../../shared/ads'
+import { stickerGraph, stickerInput, textOverlayAss, withOverlayText, type Overlay, type StickerOverlay, type TextOverlay } from '../../shared/overlays'
 import { serializeSrt, serializeVtt, type Cue } from '../../shared/srt'
 import { clipSpeed, layoutClips, mapCuesToOutput, outputDuration, outputSize, transitionDur } from '../../shared/ranges'
 import { toAss, withHook } from '../../shared/captions'
@@ -54,6 +55,8 @@ export interface ExportPayload {
   flip?: { h: boolean; v?: boolean }
   /** video ads (start / end / every N min, per part when splitting) and banner ads */
   ads?: AdsSettings
+  /** stickers and styled text (source time, output-frame positions) */
+  overlays?: Overlay[]
 }
 
 /** ffmpeg overlay position for a watermark corner (m = margin in px). */
@@ -222,7 +225,12 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
   const cover = coverOn(p.subCover) ? p.subCover : null
   const flip = !!(p.flip?.h || p.flip?.v)
   const banners = bannersOn(p.ads).filter((b) => existsSync(b.path))
-  let reencode = editOn || p.burn || resized || !!wm || !!hook || !!wmText || !!cover || flip || banners.length > 0 || !!adPlan
+  // stickers / text: their source-time spans moved to output time (cut parts drop out, like subtitles)
+  const windowsOf = (o: Overlay) =>
+    (editOn ? mapCuesToOutput([{ start: o.start, end: o.end, text: o.id }], clips) : [{ start: Math.max(0, o.start), end: Math.min(outDur, o.end) }]).filter((x) => x.end - x.start > 0.05)
+  const stickers = (p.overlays ?? []).filter((o): o is StickerOverlay => o.kind === 'sticker' && existsSync(o.path)).map((o) => ({ o, wins: windowsOf(o) })).filter((x) => x.wins.length)
+  const texts = (p.overlays ?? []).filter((o): o is TextOverlay => o.kind === 'text' && !!o.text.trim()).map((o) => ({ ...o, windows: windowsOf(o) })).filter((x) => x.windows.length)
+  let reencode = editOn || p.burn || resized || !!wm || !!hook || !!wmText || !!cover || flip || banners.length > 0 || !!adPlan || stickers.length > 0 || texts.length > 0
 
   if (!reencode) {
     ctx.progress(2, 'Muxing (video copy)')
@@ -267,7 +275,7 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
       /* unknown size: leave the text where it is */
     }
   }
-  const burnAss = withWatermarkText(withH, wmText ?? undefined, size.w, size.h, outDur, p.captions.font, textOffset)
+  const burnAss = withOverlayText(withWatermarkText(withH, wmText ?? undefined, size.w, size.h, outDur, p.captions.font, textOffset), textOverlayAss(texts, size.w, size.h, p.captions.font))
   writeFileSync(join(work, 'subs.ass'), burnAss, 'utf8')
 
   const g: string[] = []
@@ -317,13 +325,19 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
   const fo = editOn ? p.edit!.fadeOut : 0
   if (fi > 0) vf.push(`fade=t=in:st=0:d=${fi}`), af.push(`afade=t=in:st=0:d=${fi}`)
   if (fo > 0) vf.push(`fade=t=out:st=${Math.max(0, outDur - fo).toFixed(3)}:d=${fo}`), af.push(`afade=t=out:st=${Math.max(0, outDur - fo).toFixed(3)}:d=${fo}`)
-  if (p.burn || hook || wmText) vf.push('subtitles=subs.ass:fontsdir=fonts')
+  if (p.burn || hook || wmText || texts.length) vf.push('subtitles=subs.ass:fontsdir=fonts')
   vf.push('format=yuv420p')
   let vIn = 'vr'
   // extra inputs after the video (0) and the audio (1): logo, banners, video ads
   let nextIn = hasAudio ? 2 : 1
   const wmIdx = wm ? nextIn++ : -1
   const bannerIdx = banners.map(() => nextIn++)
+  const stickerIdx = stickers.map(() => nextIn++)
+  // stickers first (banners and the logo stay on top of them)
+  stickers.forEach(({ o, wins }, k) => {
+    g.push(...stickerGraph(o, wins, stickerIdx[k], vIn, `vs${k}`, w, h))
+    vIn = `vs${k}`
+  })
   banners.forEach((b, k) => {
     const m = Math.round(Math.min(w, h) * Math.max(0, b.margin))
     const en = bannerEnable(b)
@@ -359,6 +373,7 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
   // banners: a still image is looped like the logo; a GIF keeps playing its own animation
   for (const b of banners)
     inArgs.push(...(/\.gif$/i.test(b.path) ? ['-ignore_loop', '0'] : ['-loop', '1', '-framerate', String(Math.round(p.fps && p.fps > 0 ? p.fps : 30))]), '-i', b.path)
+  for (const { o, wins } of stickers) inArgs.push(...stickerInput(o, wins[0].start, p.fps && p.fps > 0 ? p.fps : 30))
   for (const a of adVids) inArgs.push('-i', a.path)
   const build = (e: string[]) => [
     ...inArgs,

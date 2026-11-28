@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { AudioWaveform, Bot, Sparkles, Captions, EyeOff, FileDown, FileUp, Film, FlipHorizontal2, FolderInput, Link, Loader2, Megaphone, Music, ShieldCheck, Stamp, Video, VolumeX, Wand2, type LucideIcon } from 'lucide-react'
+import { AudioWaveform, Bot, Sparkles, Smile, Type, Captions, EyeOff, FileDown, FileUp, Film, FlipHorizontal2, FolderInput, Link, Loader2, Megaphone, Music, ShieldCheck, Stamp, Video, VolumeX, Wand2, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { mutate, useActiveEpisode, useProject } from '@/store/project'
 import { useUi } from '@/store/ui'
@@ -30,6 +30,8 @@ export function ToolButtons() {
   const flipped = useProject((s) => !!s.project?.settings.flip?.h)
   const hasAds = useProject((s) => !!(s.project?.settings.ads?.videos.some((v) => v.enabled) || s.project?.settings.ads?.banners.some((b) => b.enabled)))
   const setUi = useUi((s) => s.set)
+  const hasStickers = !!ep?.overlays?.some((o) => o.kind === 'sticker')
+  const hasTexts = !!ep?.overlays?.some((o) => o.kind === 'text')
   const castFx = useProject((s) => !!s.project?.cast.some((a) => a.fx))
   const hasFx = castFx || !!(ep?.sfx?.length || ep?.segments.some((s) => s.fx && s.fx !== 'none'))
   const [busy, setBusy] = useState<string | null>(null)
@@ -94,6 +96,8 @@ export function ToolButtons() {
     { key: 'importLink', icon: Link, label: t('tools.importLink', 'Import Link'), run: () => setUi({ dialog: 'link' }) },
     { key: 'subCover', icon: EyeOff, label: t('tools.subCover', 'Hide Old Subs'), active: hasCover, needsVideo: true, run: () => setUi({ dialog: 'subcover' }) },
     { key: 'watermark', icon: Stamp, label: t('tools.watermark', 'Watermark'), active: hasWm, run: () => setUi({ dialog: 'watermark' }) },
+    { key: 'stickers', icon: Smile, label: t('tools.stickers', 'Stickers'), active: hasStickers, run: () => setUi({ dialog: 'overlays', overlayTab: 'stickers' }) },
+    { key: 'text', icon: Type, label: t('tools.text', 'Text'), active: hasTexts, run: () => setUi({ dialog: 'overlays', overlayTab: 'text' }) },
     { key: 'ads', icon: Megaphone, label: t('tools.ads', 'Ads'), active: hasAds, run: () => setUi({ dialog: 'ads' }) },
     { key: 'effects', icon: Sparkles, label: t('tools.effects', 'Sound & voice effects'), active: hasFx, run: () => setUi({ dialog: 'effects' }) },
     {
@@ -120,6 +124,8 @@ export function ToolButtons() {
     separateVocals: t('tools.s.separateVocals', 'Remove BGM'),
     muteOriginal: t('tools.s.muteOriginal', 'Mute'),
     effects: t('tools.s.effects', 'Effects'),
+    stickers: t('tools.s.stickers', 'Stickers'),
+    text: t('tools.s.text', 'Text'),
     importSrt: t('tools.s.importSrt', 'Import SRT'),
     exportSrt: t('tools.s.exportSrt', 'Export SRT'),
     burnSubtitles: t('tools.s.burnSubtitles', 'Burn Subs'),
@@ -135,7 +141,7 @@ export function ToolButtons() {
     [t('tools.g.import', 'Import'), ['importVideo', 'importFolder', 'importLink', 'importBgm', 'importAiVoice']],
     [t('tools.g.audio', 'Audio'), ['effects', 'separateVocals', 'muteOriginal']],
     [t('tools.g.subs', 'Subtitles'), ['importSrt', 'exportSrt', 'burnSubtitles', 'subCover']],
-    [t('tools.g.video', 'Video'), ['watermark', 'ads', 'flip']],
+    [t('tools.g.video', 'Video'), ['text', 'stickers', 'watermark', 'ads', 'flip']],
     [t('tools.g.ai', 'AI'), ['aiVideo', 'automate']],
     [t('tools.g.more', 'More'), ['source']]
   ]

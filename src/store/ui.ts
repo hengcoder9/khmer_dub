@@ -12,9 +12,11 @@ interface UiState {
   zoom: number // px per second on the timeline
   previewEdit: boolean
   settings: SectionId | null
-  dialog: null | 'export' | 'automate' | 'newProject' | 'find' | 'clone' | 'link' | 'source' | 'watermark' | 'gateway' | 'account' | 'readscreen' | 'subcover' | 'ads' | 'effects'
+  dialog: null | 'export' | 'automate' | 'newProject' | 'find' | 'clone' | 'link' | 'source' | 'watermark' | 'gateway' | 'account' | 'readscreen' | 'subcover' | 'ads' | 'effects' | 'overlays'
   editingId: string | null
   intent: HomeIntent | null
+  /** which tab the Stickers & text window opens on */
+  overlayTab: 'stickers' | 'text' | 'list'
   set: (p: Partial<Omit<UiState, 'set'>>) => void
 }
 
@@ -28,6 +30,7 @@ export const useUi = create<UiState>()((set) => ({
   dialog: null,
   editingId: null,
   intent: null,
+  overlayTab: 'stickers',
   set: (p) => set(p)
 }))
 
