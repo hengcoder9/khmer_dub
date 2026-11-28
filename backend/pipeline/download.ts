@@ -21,10 +21,11 @@ export interface DownloadPayload {
 /** Paywalled / DRM streaming services (drama apps and video platforms). */
 const BLOCKED = [
   'iq.com', 'iqiyi.com', 'wetv.vip', 'v.qq.com', 'qq.com', 'hongguoduanju.com', 'dramabox', 'goodshort',
-  'youku.com', 'mgtv.com', 'bilibili.com', 'netflix.com', 'viu.com', 'disneyplus.com', 'primevideo.com', 'reelshort', 'shortmax', 'flextv',
-  // unlicensed drama streaming sites (and their short links)
-  'kisskh'
+  'youku.com', 'mgtv.com', 'bilibili.com', 'netflix.com', 'viu.com', 'disneyplus.com', 'primevideo.com', 'reelshort', 'shortmax', 'flextv'
 ]
+
+/** Sites that show dramas without the rights holders' permission (and their short links). */
+const UNLICENSED = ['kisskh']
 
 const VIDEO_EXT = /\.(mp4|m4v|mkv|mov|webm|avi)$/i
 
@@ -40,6 +41,11 @@ export function resolveLink(raw: string): { url: string; kind: LinkKind } {
   if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error('Only http(s) links are supported.')
   const host = u.hostname.toLowerCase()
   const on = (list: string[]) => list.some((d) => host === d || host.endsWith('.' + d) || (!d.includes('.') && host.includes(d)))
+  if (on(UNLICENSED)) {
+    throw new Error(
+      `${host} shows dramas without the permission of the studios that own them, so KhmerDub doesn't download from it. Use episodes you own or are licensed to dub — e.g. files or a Google Drive / Dropbox / OneDrive / MEGA link from your distributor.`
+    )
+  }
   if (on(BLOCKED)) {
     throw new Error(
       `${host} is a streaming / VIP service: its episodes are licensed to that platform and copy-protected, so KhmerDub can't download them. Use video files you own or are licensed to dub.`

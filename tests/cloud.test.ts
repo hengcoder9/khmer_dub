@@ -22,8 +22,8 @@ describe('cloud share links', () => {
   })
 
   it('unlicensed drama sites and their short links are refused', () => {
-    expect(() => resolveLink('https://kisskh.co/Drama/Some-Show/Episode-1')).toThrow(/streaming/)
-    expect(() => resolveLink('https://t.kisskh.id/FZWR')).toThrow(/streaming/)
+    expect(() => resolveLink('https://kisskh.co/Drama/Some-Show/Episode-1')).toThrow(/without the permission/)
+    expect(() => resolveLink('https://t.kisskh.id/FZWR')).toThrow(/without the permission/)
   })
 
   it('OneDrive pre-signed download URLs are plain files', () => {
