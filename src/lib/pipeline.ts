@@ -697,7 +697,9 @@ export async function exportEpisode(opts: ExportOptions, epId?: string, extra?: 
       hook: extra?.hook || undefined,
       sourceNote: sourceNote(),
       watermark: p.settings.watermark,
-      subCover: p.settings.subCover
+      subCover: p.settings.subCover,
+      flip: p.settings.flip,
+      ads: p.settings.ads
     },
     e.id
   )

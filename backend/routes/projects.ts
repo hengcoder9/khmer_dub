@@ -1,11 +1,12 @@
 import type { FastifyInstance } from 'fastify'
-import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import type { Project } from '../../shared/types'
 import { migrateProject, newProject } from '../../shared/defaults'
 import { parseSubtitles, serializeSrt, serializeVtt, type Cue } from '../../shared/srt'
 import { allowDir, allowFile } from '../lib/allow'
 import { projectsRoot, logsDir } from '../lib/paths'
+import { getThumb } from '../lib/peaks'
 import { appendFile } from 'node:fs/promises'
 
 const safeName = (s: string) => s.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim().slice(0, 80) || 'Project'
@@ -24,6 +25,52 @@ function writeAtomic(file: string, data: string) {
 
 export async function projectRoutes(app: FastifyInstance) {
   app.get('/projects/root', async () => ({ root: projectsRoot }))
+
+  /**
+   * Home screen: every project in the projects folder plus the given (recent) folders, newest first, with a
+   * small thumbnail from the first episode's video. Reads project.json only — nothing is opened or changed.
+   */
+  app.post<{ Body: { dirs?: string[] } }>('/projects/list', async (req) => {
+    const dirs = new Set<string>()
+    try {
+      for (const d of readdirSync(projectsRoot, { withFileTypes: true })) if (d.isDirectory()) dirs.add(join(projectsRoot, d.name))
+    } catch {
+      /* no projects folder yet */
+    }
+    for (const d of req.body?.dirs ?? []) if (typeof d === 'string' && d) dirs.add(resolve(d))
+    const out: Array<{ dir: string; name: string; episodes: number; durationSec: number; updatedAt: number; thumb: string | null; aspect: number }> = []
+    for (const dir of dirs) {
+      const file = join(dir, 'project.json')
+      if (!existsSync(file)) continue
+      try {
+        const p = JSON.parse(readFileSync(file, 'utf8')) as Project
+        if (!p || !Array.isArray(p.episodes)) continue
+        const withVideo = p.episodes.find((e) => e.videoPath && existsSync(e.videoPath))
+        let thumb: string | null = null
+        if (withVideo) {
+          try {
+            const buf = await getThumb(withVideo.videoPath!, Math.min(8, (withVideo.durationSec || 10) * 0.2), 320)
+            thumb = `data:image/jpeg;base64,${buf.toString('base64')}`
+          } catch {
+            /* unreadable video: no picture */
+          }
+        }
+        const v = withVideo?.media?.video
+        out.push({
+          dir,
+          name: p.name || 'Untitled',
+          episodes: p.episodes.length,
+          durationSec: p.episodes.reduce((a, e) => a + (e.durationSec || 0), 0),
+          updatedAt: statSync(file).mtimeMs,
+          thumb,
+          aspect: v?.width && v.height ? v.width / v.height : 16 / 9
+        })
+      } catch {
+        /* not a readable project */
+      }
+    }
+    return { root: projectsRoot, projects: out.sort((a, b) => b.updatedAt - a.updatedAt) }
+  })
 
   app.post<{ Body: { name: string; parentDir?: string } }>('/projects/create', async (req) => {
     const parent = req.body.parentDir || projectsRoot

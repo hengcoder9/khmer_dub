@@ -1016,3 +1016,67 @@ acct.emailPw	អ៊ីមែល និងពាក្យសម្ងាត់
 acct.noPw	មិនទាន់មានពាក្យសម្ងាត់
 acct.tgOnly	គណនីនេះចូលដោយ Telegram ដូច្នេះគ្មានពាក្យសម្ងាត់ទេ។ ប្រើ «បន្តជាមួយ Telegram» នៅលើកុំព្យូទ័រផ្សេង។
 acct.setPw	កំណត់ពាក្យសម្ងាត់
+tools.ads	ពាណិជ្ជកម្ម
+tools.flip	ត្រឡប់
+tools.flipOn	រូបភាពត្រូវបានត្រឡប់ (ឆ្វេង ↔ ស្ដាំ) — ក្នុងការមើលជាមុន និងការនាំចេញ។ អក្សររត់នៅតែអានបាន។
+tools.flipOff	រូបភាពត្រឡប់មកធម្មតាវិញ
+ads.title	ពាណិជ្ជកម្មក្នុងវីដេអូ
+ads.desc	ដាក់វីដេអូពាណិជ្ជកម្ម និងបដាពាណិជ្ជកម្មរបស់អ្នកចូលក្នុងរាល់ការនាំចេញនៃគម្រោងនេះ។ ពេលបំបែកជាភាគ រាល់ភាគនីមួយៗនឹងមានវាដែរ។
+ads.videos	វីដេអូពាណិជ្ជកម្ម
+ads.videosHint	ឃ្លីបដែលចាក់មុន ចន្លោះ ឬក្រោយវីដេអូរបស់អ្នក
+ads.addVideo	បន្ថែមវីដេអូពាណិជ្ជកម្ម
+ads.noVideos	មិនទាន់មានវីដេអូពាណិជ្ជកម្មទេ។ បន្ថែម MP4 — ឧ. វីដេអូផ្សព្វផ្សាយ ៥ វិនាទីសម្រាប់ឆានែល Telegram របស់អ្នក។
+ads.noVideo	ឯកសារនេះគ្មានរូបភាពវីដេអូទេ
+ads.atStart	នៅដើម
+ads.atEvery	រៀងរាល់ប៉ុន្មាននាទី
+ads.atEnd	នៅចុង
+ads.everyMin	រៀងរាល់ {{m}} នាទី
+ads.adds	បន្ថែមប្រហែល {{s}} ទៅវីដេអូនីមួយៗ (ឬភាគនីមួយៗ) បូកនឹងពាណិជ្ជកម្ម «រៀងរាល់ប៉ុន្មាននាទី»។
+ads.banners	បដាពាណិជ្ជកម្ម
+ads.bannersHint	រូបភាពនៅលើវីដេអូ (PNG ផ្ទៃថ្លាល្អបំផុត)
+ads.addBanner	បន្ថែមបដា
+ads.noBanners	មិនទាន់មានបដាទេ។ បន្ថែម PNG, JPG, WebP ឬ GIF មានចលនា។
+ads.posTop	ខាងលើ
+ads.posBottom	ខាងក្រោម
+ads.posCenter	កណ្ដាល
+ads.posTl	លើឆ្វេង
+ads.posTr	លើស្ដាំ
+ads.posBl	ក្រោមឆ្វេង
+ads.posBr	ក្រោមស្ដាំ
+ads.show	បង្ហាញ
+ads.showInterval	ម្ដងម្កាល
+ads.showAlways	គ្រប់ពេល
+ads.schedule	កាលវិភាគ
+home.home	ទំព័រដើម
+home.projects	គម្រោង
+home.createAi	បង្កើតជាមួយ AI
+home.more	ឧបករណ៍ផ្សេងទៀត
+home.tDub	បញ្ចូលសំឡេងវីដេអូ
+home.tDubD	សំឡេងខ្មែរ អក្សររត់ និងការបកប្រែ
+home.tAiVideo	វីដេអូ AI
+home.tAiVideoD	ប្រែគំនិតទៅជាវីដេអូ
+home.tShorts	វីដេអូវែងទៅជាខ្លី
+home.tShortsD	វីដេអូខ្លី ត្រេលឡឺ និងសង្ខេប
+home.tShortsNav	វីដេអូខ្លី និងរូបក្រប
+home.tThumb	រូបក្រប AI
+home.tThumbD	រូបក្របទាក់ទាញអ្នកចុច
+home.tClaude	វីដេអូ Claude
+home.tClaudeD	វីដេអូរឿងពីប្រធានបទ
+home.fromLink	នាំចូលពីតំណ
+home.openDisk	បើកពីកុំព្យូទ័រ
+home.engines	ម៉ាស៊ីន AI
+home.settings	ការកំណត់
+home.lang	ភាសា
+home.create	បង្កើតគម្រោង
+home.createHint	វីដេអូមួយ ឬរឿងភាគទាំងមូល (E01, E02…)
+home.search	ស្វែងរកគម្រោង
+home.noMatch	គ្មានគម្រោងត្រូវនឹងការស្វែងរកទេ
+home.empty	មិនទាន់មានគម្រោងទេ
+home.emptyHint	ចុច «បង្កើតគម្រោង» ហើយជ្រើសវីដេអូដើម្បីចាប់ផ្ដើម។
+home.eps	{{n}} ភាគ
+home.folder	ថតគម្រោង៖ {{dir}}
+home.signIn	ចូលគណនី
+home.signInHint	Google, Telegram ឬអ៊ីមែល
+home.trial	សាកល្បងឥតគិតថ្លៃ
+home.noPlan	គ្មានគម្រោងសកម្ម
+home.getPro	យក Pro

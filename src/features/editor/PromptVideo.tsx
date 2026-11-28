@@ -76,7 +76,7 @@ export function PromptVideo({ compact = false }: { compact?: boolean }) {
   }
 
   return (
-    <section className={cn('rounded-lg border bg-card text-left', compact && 'w-full max-w-xl')}>
+    <section id="ai-video" className={cn('scroll-mt-3 rounded-lg border bg-card text-left', compact && 'w-full max-w-xl')}>
       <div className="flex items-center gap-2 border-b px-3 py-2">
         <Wand2 className="size-4 text-primary" />
         <h3 className="text-sm font-semibold">{t('pv.title', 'AI Video from prompt')}</h3>

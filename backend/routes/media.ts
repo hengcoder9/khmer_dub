@@ -22,7 +22,9 @@ const MIME: Record<string, string> = {
   '.flac': 'audio/flac',
   '.ogg': 'audio/ogg',
   '.jpg': 'image/jpeg',
-  '.png': 'image/png'
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif'
 }
 
 async function checkFile(p: string | undefined): Promise<{ abs: string; size: number } | { code: number; error: string }> {

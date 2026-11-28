@@ -329,9 +329,50 @@ export interface ProjectSettings {
   watermark?: Watermark
   /** hide the source video's own burned-in subtitles under a blur or a bar */
   subCover?: SubCover
+  /** mirror the picture (common trick for re-uploads); captions are not mirrored */
+  flip?: { h: boolean; v?: boolean }
+  /** video ads (pre / mid / post-roll) and banner ads inside the exported video */
+  ads?: AdsSettings
 }
 
 /** Area over the old (burned-in) subtitles, as fractions of the SOURCE frame, blurred or covered in the export. */
+/** A video clip played inside the export: at the start, at the end, or every N minutes. */
+export interface AdVideo {
+  id: string
+  path: string
+  name?: string
+  at: 'start' | 'end' | 'every'
+  /** for 'every' */
+  everyMin?: number
+  /** probed when added */
+  durationSec?: number
+  enabled: boolean
+}
+
+/** An image over the picture (png / jpg / webp / gif), always or for a few seconds every N minutes. */
+export interface AdBanner {
+  id: string
+  path: string
+  name?: string
+  position: 'top' | 'bottom' | 'center' | 'tl' | 'tr' | 'bl' | 'br'
+  /** width as a share of the video width (0.1–1) */
+  size: number
+  /** distance from the edge, share of the short side */
+  margin: number
+  opacity: number
+  show: 'always' | 'interval'
+  everyMin: number
+  forSec: number
+  /** first appearance (seconds into the video) */
+  startSec?: number
+  enabled: boolean
+}
+
+export interface AdsSettings {
+  videos: AdVideo[]
+  banners: AdBanner[]
+}
+
 export interface SubCover {
   enabled: boolean
   x: number

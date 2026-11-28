@@ -1,6 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Aspect, CaptionStyle, Clip, SubCover, Watermark } from '../../shared/types'
+import type { AdsSettings, AdVideo, Aspect, CaptionStyle, Clip, SubCover, Watermark } from '../../shared/types'
+import { bannerEnable, bannersOn, bannerXY, mapCuesThroughAds, planAds, videoAdsOn, type AdPlan } from '../../shared/ads'
 import { serializeSrt, serializeVtt, type Cue } from '../../shared/srt'
 import { clipSpeed, layoutClips, mapCuesToOutput, outputDuration, outputSize, transitionDur } from '../../shared/ranges'
 import { toAss, withHook } from '../../shared/captions'
@@ -49,6 +50,10 @@ export interface ExportPayload {
   hook?: string
   /** blur / cover the source's own burned-in subtitles */
   subCover?: SubCover
+  /** mirror the picture */
+  flip?: { h: boolean; v?: boolean }
+  /** video ads (start / end / every N min, per part when splitting) and banner ads */
+  ads?: AdsSettings
 }
 
 /** ffmpeg overlay position for a watermark corner (m = margin in px). */
@@ -155,18 +160,40 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
     .replace(/[. ]+$/, '') || 'export'
   const base = join(p.outDir, baseName)
 
-  const cuts = planParts(outDur, (p.splitMinutes ?? 0) * 60, cues)
-  const splitting = cuts.length > 0
+  const mainCuts = planParts(outDur, (p.splitMinutes ?? 0) * 60, cues)
+  const splitting = mainCuts.length > 0
   // parts from an earlier export of this episode (it may have had more parts)
   if (splitting) removeOldParts(p.outDir, baseName)
 
+  // video ads: laid into the timeline (each part gets its own when splitting); they shift every later subtitle
+  const adVids: Array<AdVideo & { durationSec: number; hasAudio: boolean }> = []
+  if (p.outputs.mp4) {
+    for (const a of videoAdsOn(p.ads)) {
+      if (!existsSync(a.path)) {
+        ctx.log(`Video ad not found, skipped: ${a.path}`)
+        continue
+      }
+      try {
+        const info = await probeMedia(a.path)
+        if (info.video && info.durationSec > 0.1) adVids.push({ ...a, durationSec: info.durationSec, hasAudio: !!info.audio })
+      } catch (e) {
+        ctx.log(`Video ad could not be read, skipped: ${a.path} (${(e as Error).message})`)
+      }
+    }
+  }
+  const adPlan: AdPlan | null = adVids.length ? planAds(splitting ? partRanges(outDur, mainCuts) : [{ start: 0, end: outDur }], adVids) : null
+  const finalDur = adPlan ? adPlan.total : outDur
+  const cuts = adPlan ? adPlan.cuts : mainCuts
+  const outCues = adPlan ? mapCuesThroughAds(cues, adPlan) : cues
+
   // text outputs (per part when splitting — written after the video is cut, from the real part lengths)
   const ass = toAss(cues, p.captions, size.w, size.h, p.captionLang)
-  if (splitting && !p.outputs.mp4) files.push(...writePartTexts(p, cues, partRanges(outDur, cuts), base, size))
-  if (!splitting && p.outputs.srt) writeFileSync(`${base}.srt`, serializeSrt(cues), 'utf8'), files.push(`${base}.srt`)
-  if (!splitting && p.outputs.vtt) writeFileSync(`${base}.vtt`, serializeVtt(cues), 'utf8'), files.push(`${base}.vtt`)
+  const outAss = adPlan ? toAss(outCues, p.captions, size.w, size.h, p.captionLang) : ass
+  if (splitting && !p.outputs.mp4) files.push(...writePartTexts(p, cues, partRanges(outDur, mainCuts), base, size))
+  if (!splitting && p.outputs.srt) writeFileSync(`${base}.srt`, serializeSrt(outCues), 'utf8'), files.push(`${base}.srt`)
+  if (!splitting && p.outputs.vtt) writeFileSync(`${base}.vtt`, serializeVtt(outCues), 'utf8'), files.push(`${base}.vtt`)
   if (!splitting && p.meta) writeFileSync(`${base}.txt`, metaText(p.meta), 'utf8'), files.push(`${base}.txt`)
-  if (!splitting && p.outputs.ass) writeFileSync(`${base}.ass`, ass, 'utf8'), files.push(`${base}.ass`)
+  if (!splitting && p.outputs.ass) writeFileSync(`${base}.ass`, outAss, 'utf8'), files.push(`${base}.ass`)
   if (p.outputs.dubWav && existsSync(p.outputs.dubWav)) copyFileSync(p.outputs.dubWav, `${base}_voice.wav`), files.push(`${base}_voice.wav`)
   if (p.outputs.instrumental && existsSync(p.outputs.instrumental)) copyFileSync(p.outputs.instrumental, `${base}_instrumental.wav`), files.push(`${base}_instrumental.wav`)
 
@@ -193,7 +220,9 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
   const wmText = hasWmText(p.watermark) ? p.watermark! : null
   const hook = p.hook?.trim() || ''
   const cover = coverOn(p.subCover) ? p.subCover : null
-  let reencode = editOn || p.burn || resized || !!wm || !!hook || !!wmText || !!cover
+  const flip = !!(p.flip?.h || p.flip?.v)
+  const banners = bannersOn(p.ads).filter((b) => existsSync(b.path))
+  let reencode = editOn || p.burn || resized || !!wm || !!hook || !!wmText || !!cover || flip || banners.length > 0 || !!adPlan
 
   if (!reencode) {
     ctx.progress(2, 'Muxing (video copy)')
@@ -211,7 +240,7 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
 
     const r = await runFfmpeg(muxArgs, { durationSec: outDur, signal: ctx.signal, onProgress: (pct) => ctx.progress(pct, 'Muxing') })
     if (r.code === 0 && existsSync(out)) {
-      if (splitting) return { files: [...(await splitVideo(p, out, cuts, cues, base, size, ctx)), ...files] }
+      if (splitting) return { files: [...(await splitVideo(p, out, cuts, outCues, base, size, ctx)), ...files] }
       files.unshift(out)
       return { files }
     }
@@ -248,6 +277,11 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
   if (cover) {
     g.push(...coverGraph(cover, '0:V', 'vsrc', p.height))
     src = 'vsrc'
+  }
+  // mirror after the cover (its box is drawn on the unmirrored picture) and before cuts / reframing
+  if (flip) {
+    g.push(`[${src}]${[p.flip?.h ? 'hflip' : '', p.flip?.v ? 'vflip' : ''].filter(Boolean).join(',')}[vflip]`)
+    src = 'vflip'
   }
   if (editOn && n > 0) {
     g.push(...clipGraph(clips, hasAudio, p.fps && p.fps > 0 ? p.fps : 30, src))
@@ -286,18 +320,33 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
   if (p.burn || hook || wmText) vf.push('subtitles=subs.ass:fontsdir=fonts')
   vf.push('format=yuv420p')
   let vIn = 'vr'
+  // extra inputs after the video (0) and the audio (1): logo, banners, video ads
+  let nextIn = hasAudio ? 2 : 1
+  const wmIdx = wm ? nextIn++ : -1
+  const bannerIdx = banners.map(() => nextIn++)
+  banners.forEach((b, k) => {
+    const m = Math.round(Math.min(w, h) * Math.max(0, b.margin))
+    const en = bannerEnable(b)
+    g.push(`[${bannerIdx[k]}:v]format=rgba,scale=${even(w * Math.min(1, Math.max(0.05, b.size)))}:-1,colorchannelmixer=aa=${Math.min(1, Math.max(0, b.opacity)).toFixed(3)}[bn${k}]`)
+    g.push(`[${vIn}][bn${k}]overlay=${bannerXY(b.position, m)}:format=auto:shortest=1${en ? `:enable='${en}'` : ''}[vb${k}]`)
+    vIn = `vb${k}`
+  })
   if (wm) {
     // logo: scaled to a share of the frame width, faded to its opacity, kept on screen for the whole video
-    const wi = hasAudio ? 2 : 1
+    const wi = wmIdx
     const m = Math.round(Math.min(w, h) * Math.max(0, wm.margin))
     const pulse = wmLogoPulse(wm)
     // -loop 1 keeps a still logo alive for the whole video, so animations can use t
     g.push(`[${wi}:v]format=rgba,scale=${even(w * Math.min(0.9, Math.max(0.02, wm.size)))}:-1,colorchannelmixer=aa=${Math.min(1, Math.max(0, wm.opacity)).toFixed(3)}${pulse ? ',' + pulse : ''}[wm]`)
-    g.push(`[vr][wm]overlay=${wmOverlayXY(wm, m)}:format=auto:shortest=1[vw]`)
+    g.push(`[${vIn}][wm]overlay=${wmOverlayXY(wm, m)}:format=auto:shortest=1[vw]`)
     vIn = 'vw'
   }
-  g.push(`[${vIn}]${vf.join(',')}[vout]`)
-  g.push(`[acat]${af.length ? af.join(',') : 'anull'}[aout]`)
+  const fpsOut = Math.round((p.fps && p.fps > 0 ? p.fps : 30) * 1000) / 1000
+  if (adPlan) vf.push(`fps=${fpsOut}`)
+  g.push(`[${vIn}]${vf.join(',')}[${adPlan ? 'vmain' : 'vout'}]`)
+  g.push(`[acat]${[...af, ...(adPlan ? ['aresample=44100', 'aformat=sample_fmts=fltp:channel_layouts=stereo'] : [])].join(',') || 'anull'}[${adPlan ? 'amain' : 'aout'}]`)
+  const adIdx = adVids.map(() => nextIn++)
+  if (adPlan) g.push(...adGraph(adPlan, adVids, adIdx, w, h, fpsOut))
   writeFileSync(join(work, 'graph.txt'), g.join(';\n'), 'utf8')
 
   const enc = await encoderArgs(p.encoder)
@@ -307,6 +356,10 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
   // always loop the logo: a single still frame + overlay shortest=1 would end the VIDEO after its first frame
   // (the whole export froze on one picture, and "split into episodes" then had no keyframe to cut at)
   if (wm) inArgs.push('-loop', '1', '-framerate', String(Math.round(p.fps && p.fps > 0 ? p.fps : 30)), '-i', wm.path)
+  // banners: a still image is looped like the logo; a GIF keeps playing its own animation
+  for (const b of banners)
+    inArgs.push(...(/\.gif$/i.test(b.path) ? ['-ignore_loop', '0'] : ['-loop', '1', '-framerate', String(Math.round(p.fps && p.fps > 0 ? p.fps : 30))]), '-i', b.path)
+  for (const a of adVids) inArgs.push('-i', a.path)
   const build = (e: string[]) => [
     ...inArgs,
     '-/filter_complex', 'graph.txt',
@@ -315,25 +368,67 @@ export async function exportEpisode(p: ExportPayload, ctx: JobCtx): Promise<{ fi
     // a keyframe exactly at every cut, so the parts can be split losslessly and frame-accurately
     ...(splitting ? ['-force_key_frames', cuts.map((c) => c.toFixed(3)).join(',')] : []),
     '-c:a', 'aac', '-b:a', '192k',
-    // the output is exactly as long as the (edited) video, whatever the audio length
-    '-t', outDur.toFixed(3),
+    // the output is exactly as long as the (edited) video plus its ads, whatever the audio length
+    '-t', finalDur.toFixed(3),
     '-movflags', '+faststart',
     out,
     '-progress', 'pipe:1', '-nostats'
   ]
 
-  let r = await runFfmpeg(build(enc), { cwd: work, durationSec: outDur, signal: ctx.signal, onProgress: (pct) => ctx.progress(pct, 'Rendering') })
+  let r = await runFfmpeg(build(enc), { cwd: work, durationSec: finalDur, signal: ctx.signal, onProgress: (pct) => ctx.progress(pct, 'Rendering') })
   if (r.code !== 0 && enc[1] !== 'libx264' && !ctx.signal.aborted) {
     ctx.log(`GPU encode failed, retrying with libx264: ${r.stderr.slice(-300)}`)
     r = await runFfmpeg(build(await encoderArgs('cpu')), {
-      cwd: work, durationSec: outDur, signal: ctx.signal, onProgress: (pct) => ctx.progress(pct, 'Rendering (CPU)')
+      cwd: work, durationSec: finalDur, signal: ctx.signal, onProgress: (pct) => ctx.progress(pct, 'Rendering (CPU)')
     })
   }
   try { rmSync(work, { recursive: true, force: true }) } catch {}
   if (r.code !== 0) throw ffFail('Export', r.stderr)
-  if (splitting) return { files: [...(await splitVideo(p, out, cuts, cues, base, size, ctx)), ...files] }
+  if (splitting) return { files: [...(await splitVideo(p, out, cuts, outCues, base, size, ctx)), ...files] }
   files.unshift(out)
   return { files }
+}
+
+/**
+ * Cut the finished main video at the ad breaks and join it with the ads: [vmain][amain] → [vout][aout].
+ * Every ad is fitted into the frame (letterboxed), set to the same frame rate, and gets silence if it has no sound.
+ */
+export function adGraph(plan: AdPlan, ads: Array<{ durationSec: number; hasAudio: boolean }>, inputIdx: number[], w: number, h: number, fps: number): string[] {
+  const g: string[] = []
+  const mains = plan.pieces.filter((x) => x.kind === 'main')
+  const uses = ads.map((_, i) => plan.pieces.filter((x) => x.kind === 'ad' && x.ad === i).length)
+  if (mains.length > 1) {
+    g.push(`[vmain]split=${mains.length}${mains.map((_, k) => `[ms${k}]`).join('')}`)
+    g.push(`[amain]asplit=${mains.length}${mains.map((_, k) => `[as${k}]`).join('')}`)
+  }
+  mains.forEach((m, k) => {
+    if (m.kind !== 'main') return
+    const vi = mains.length > 1 ? `ms${k}` : 'vmain'
+    const ai = mains.length > 1 ? `as${k}` : 'amain'
+    g.push(`[${vi}]trim=start=${m.from.toFixed(3)}:end=${m.to.toFixed(3)},setpts=PTS-STARTPTS[mv${k}]`)
+    g.push(`[${ai}]atrim=start=${m.from.toFixed(3)}:end=${m.to.toFixed(3)},asetpts=PTS-STARTPTS[ma${k}]`)
+  })
+  ads.forEach((a, i) => {
+    const n = uses[i]
+    if (!n) return
+    const d = a.durationSec.toFixed(3)
+    // a fixed length for picture and sound, so the joins stay in sync
+    g.push(`[${inputIdx[i]}:v]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps=${fps},format=yuv420p,tpad=stop_mode=clone:stop_duration=2,trim=duration=${d},setpts=PTS-STARTPTS${n > 1 ? `,split=${n}${Array.from({ length: n }, (_, k) => `[adv${i}_${k}]`).join('')}` : `[adv${i}_0]`}`)
+    const asrc = a.hasAudio ? `[${inputIdx[i]}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,` : 'anullsrc=channel_layout=stereo:sample_rate=44100,aformat=sample_fmts=fltp,'
+    g.push(`${asrc}apad,atrim=duration=${d},asetpts=PTS-STARTPTS${n > 1 ? `,asplit=${n}${Array.from({ length: n }, (_, k) => `[ada${i}_${k}]`).join('')}` : `[ada${i}_0]`}`)
+  })
+  const seen = ads.map(() => 0)
+  let mk = 0
+  const seq = plan.pieces.map((x) => {
+    if (x.kind === 'main') {
+      const k = mk++
+      return `[mv${k}][ma${k}]`
+    }
+    const k = seen[x.ad]++
+    return `[adv${x.ad}_${k}][ada${x.ad}_${k}]`
+  })
+  g.push(`${seq.join('')}concat=n=${plan.pieces.length}:v=1:a=1[vout][aout]`)
+  return g
 }
 
 function removeOldParts(dir: string, baseName: string) {

@@ -25,7 +25,16 @@ nsis:
   perMachine: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
+  createStartMenuShortcut: true
   shortcutName: KhmerDub Studio
+  # branded pages (scripts/installer-art.mjs renders these): welcome / finish sidebar and the header on the other pages
+  installerSidebar: build/installerSidebar.bmp
+  uninstallerSidebar: build/uninstallerSidebar.bmp
+  installerHeader: build/installerHeader.bmp
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  # open the app when the installer finishes
+  runAfterFinish: true
 # Auto-update: publish releases to your GitHub repo (set owner/repo, then `npm run dist -- --publish always` with GH_TOKEN set)
 publish:
   provider: github

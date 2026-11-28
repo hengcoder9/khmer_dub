@@ -11,6 +11,7 @@ import { clipSpeed, dubOnAt, dubSpans, effectiveClips, outputDuration, outputToS
 import { CaptionPreview } from './CaptionPreview'
 import { WatermarkLayer } from '@/features/project/WatermarkLayer'
 import { SubCoverLayer } from '@/features/project/SubCoverLayer'
+import { BannerLayer } from '@/features/project/BannerLayer'
 import { setBurnSubtitles } from './burn'
 
 const ASPECT: Record<string, number> = { '16:9': 16 / 9, '9:16': 9 / 16, '1:1': 1, '4:5': 4 / 5 }
@@ -24,6 +25,8 @@ export function VideoPlayer() {
   const burn = useProject((s) => s.project?.settings.burnSubtitles ?? false)
   const wm = useProject((s) => s.project?.settings.watermark)
   const subCover = useProject((s) => s.project?.settings.subCover)
+  const flip = useProject((s) => s.project?.settings.flip)
+  const banners = useProject((s) => s.project?.settings.ads?.banners)
   const [wmUrl, setWmUrl] = useState<string | null>(null)
   useEffect(() => {
     let alive = true
@@ -373,6 +376,8 @@ export function VideoPlayer() {
             className={cn('relative h-full overflow-hidden', aspect && ep?.edit.fitMode !== 'crop' && 'bg-neutral-900')}
             style={{ aspectRatio: String(aspect ?? srcAspect), maxWidth: '100%' }}
           >
+            {/* mirrored picture (and the cover box drawn on it), like the export; captions and logos are not mirrored */}
+            <div className="relative size-full" style={flip?.h || flip?.v ? { transform: `scale(${flip.h ? -1 : 1}, ${flip.v ? -1 : 1})` } : undefined}>
             <video
               ref={ref}
               src={src}
@@ -404,6 +409,9 @@ export function VideoPlayer() {
             {subCover?.enabled && (
               <SubCoverLayer cover={subCover} srcAspect={srcAspect} boxAspect={aspect ?? srcAspect} fit={aspect && ep?.edit.fitMode === 'crop' ? 'cover' : 'contain'} />
             )}
+            </div>
+            {/* banner ads on their schedule */}
+            {banners && banners.length > 0 && <BannerLayer banners={banners} time={time} />}
             {/* logo and/or text watermark, animated like the export */}
             {wm && (wmUrl || wm.text?.trim()) && <WatermarkLayer wm={wm} imageUrl={wmUrl} />}
             {dip > 0 && <div className="pointer-events-none absolute inset-0 bg-black" style={{ opacity: dip }} />}

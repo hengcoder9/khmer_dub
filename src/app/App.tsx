@@ -7,7 +7,7 @@ import { connectEvents } from '@/store/jobs'
 import { post } from '@/lib/api'
 import { isTyping } from '@/lib/utils'
 import { Layout } from '@/components/Layout'
-import { Welcome } from '@/features/project/Welcome'
+import { Home } from '@/features/project/Home'
 import { SettingsModal } from '@/features/settings/SettingsModal'
 import { ExportDialog } from '@/features/export/ExportDialog'
 import { AutomateDialog } from '@/features/automate/AutomateDialog'
@@ -17,6 +17,7 @@ import { LinkDialog, SourceDialog } from '@/features/project/ImportTools'
 import { WatermarkDialog } from '@/features/project/WatermarkDialog'
 import { ReadScreenDialog } from '@/features/project/ReadScreenDialog'
 import { SubCoverDialog } from '@/features/project/SubCoverDialog'
+import { AdsDialog } from '@/features/project/AdsDialog'
 import { JobDock } from '@/components/JobDock'
 import { GatewayDialog } from '@/features/gateway/GatewayDialog'
 import { AccountDialog } from '@/features/account/AccountDialog'
@@ -57,6 +58,17 @@ export function App() {
   useEffect(() => {
     document.documentElement.lang = lang
   }, [lang])
+
+  // a Home tool (AI Video, shorts…) asked for a new project: open that tool as soon as the project is there
+  useEffect(() => {
+    if (!hasProject) return
+    const intent = useUi.getState().intent
+    if (!intent) return
+    setUi({ intent: null })
+    if (intent === 'link') return void setTimeout(() => setUi({ dialog: 'link' }), 150)
+    setUi({ centerTab: 'editor' })
+    setTimeout(() => document.getElementById(intent)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 250)
+  }, [hasProject, setUi])
 
   // backend events + engine config on start
   useEffect(() => {
@@ -108,7 +120,7 @@ export function App() {
 
   return (
     <>
-      {hasProject ? <Layout /> : <Welcome />}
+      {hasProject ? <Layout /> : <Home />}
       <SettingsModal section={settings} onSectionChange={(s) => setUi({ settings: s })} />
       {dialog === 'export' && <ExportDialog onClose={() => setUi({ dialog: null })} />}
       {dialog === 'automate' && <AutomateDialog onClose={() => setUi({ dialog: null })} />}
@@ -118,6 +130,7 @@ export function App() {
       {dialog === 'watermark' && <WatermarkDialog onClose={() => setUi({ dialog: null })} />}
       {dialog === 'readscreen' && <ReadScreenDialog onClose={() => setUi({ dialog: null })} />}
       {dialog === 'subcover' && <SubCoverDialog onClose={() => setUi({ dialog: null })} />}
+      {dialog === 'ads' && <AdsDialog onClose={() => setUi({ dialog: null })} />}
       {dialog === 'gateway' && <GatewayDialog onClose={() => setUi({ dialog: null })} />}
       {dialog === 'account' && <AccountDialog onClose={() => setUi({ dialog: null })} />}
       <UpdateModal />

@@ -77,7 +77,7 @@ export function StoryVideo({ compact = false }: { compact?: boolean }) {
   const omniCost = background === 'omni' && plan ? plan.scenes.length * 8 * OMNI_USD_PER_SEC['720p'] : null
 
   return (
-    <section className={cn('rounded-lg border bg-card text-left', compact && 'w-full max-w-xl')}>
+    <section id="claude-video" className={cn('scroll-mt-3 rounded-lg border bg-card text-left', compact && 'w-full max-w-xl')}>
       <div className="flex items-center gap-2 border-b px-3 py-2">
         <Bot className="size-4 text-primary" />
         <h3 className="text-sm font-semibold">{t('sv.title', 'Claude Video')}</h3>

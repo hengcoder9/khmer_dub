@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import type { SectionId } from '@/features/settings/SettingsModal'
 
 export type CenterTab = 'dub' | 'editor'
+/** a Home-screen tool that needs a project: opened right after the new project is made */
+export type HomeIntent = 'ai-video' | 'claude-video' | 'ai-creator' | 'link'
 
 interface UiState {
   time: number
@@ -10,8 +12,9 @@ interface UiState {
   zoom: number // px per second on the timeline
   previewEdit: boolean
   settings: SectionId | null
-  dialog: null | 'export' | 'automate' | 'newProject' | 'find' | 'clone' | 'link' | 'source' | 'watermark' | 'gateway' | 'account' | 'readscreen' | 'subcover'
+  dialog: null | 'export' | 'automate' | 'newProject' | 'find' | 'clone' | 'link' | 'source' | 'watermark' | 'gateway' | 'account' | 'readscreen' | 'subcover' | 'ads'
   editingId: string | null
+  intent: HomeIntent | null
   set: (p: Partial<Omit<UiState, 'set'>>) => void
 }
 
@@ -24,6 +27,7 @@ export const useUi = create<UiState>()((set) => ({
   settings: null,
   dialog: null,
   editingId: null,
+  intent: null,
   set: (p) => set(p)
 }))
 
