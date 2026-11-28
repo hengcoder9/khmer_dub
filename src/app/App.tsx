@@ -20,6 +20,7 @@ import { SubCoverDialog } from '@/features/project/SubCoverDialog'
 import { AdsDialog } from '@/features/project/AdsDialog'
 import { EffectsDialog } from '@/features/project/EffectsDialog'
 import { OverlaysDialog } from '@/features/project/OverlaysDialog'
+import { CopyrightDialog } from '@/features/project/CopyrightDialog'
 import { JobDock } from '@/components/JobDock'
 import { GatewayDialog } from '@/features/gateway/GatewayDialog'
 import { AccountDialog } from '@/features/account/AccountDialog'
@@ -134,6 +135,7 @@ export function App() {
       {dialog === 'subcover' && <SubCoverDialog onClose={() => setUi({ dialog: null })} />}
       {dialog === 'ads' && <AdsDialog onClose={() => setUi({ dialog: null })} />}
       {dialog === 'effects' && <EffectsDialog onClose={() => setUi({ dialog: null })} />}
+      {dialog === 'copyright' && <CopyrightDialog onClose={() => setUi({ dialog: null })} />}
       {dialog === 'overlays' && <OverlaysDialog initialTab={useUi.getState().overlayTab} onClose={() => setUi({ dialog: null })} />}
       {dialog === 'gateway' && <GatewayDialog onClose={() => setUi({ dialog: null })} />}
       {dialog === 'account' && <AccountDialog onClose={() => setUi({ dialog: null })} />}

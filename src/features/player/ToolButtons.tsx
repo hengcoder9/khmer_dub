@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { AudioWaveform, Bot, Sparkles, Smile, Type, Captions, EyeOff, FileDown, FileUp, Film, FlipHorizontal2, FolderInput, Link, Loader2, Megaphone, Music, ShieldCheck, Stamp, Video, VolumeX, Wand2, type LucideIcon } from 'lucide-react'
+import { AudioWaveform, Bot, Sparkles, Smile, Type, ShieldAlert, Captions, EyeOff, FileDown, FileUp, Film, FlipHorizontal2, FolderInput, Link, Loader2, Megaphone, Music, ShieldCheck, Stamp, Video, VolumeX, Wand2, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { mutate, useActiveEpisode, useProject } from '@/store/project'
 import { useUi } from '@/store/ui'
@@ -111,6 +111,7 @@ export function ToolButtons() {
         toast.info(flipped ? t('tools.flipOff', 'Picture back to normal') : t('tools.flipOn', 'Picture mirrored (left ↔ right) — in the preview and the export. Captions stay readable.'))
       }
     },
+    { key: 'copyright', icon: ShieldAlert, label: t('tools.copyright', 'Copyright check'), needsVideo: true, run: () => setUi({ dialog: 'copyright' }) },
     { key: 'source', icon: ShieldCheck, label: t('tools.source', 'Source & licence'), active: hasSource, run: () => setUi({ dialog: 'source' }) }
   ]
 
@@ -135,7 +136,8 @@ export function ToolButtons() {
     flip: t('tools.s.flip', 'Flip'),
     aiVideo: t('tools.s.aiVideo', 'AI Video'),
     automate: t('tools.s.automate', 'Automate'),
-    source: t('tools.s.source', 'Source')
+    source: t('tools.s.source', 'Source'),
+    copyright: t('tools.s.copyright', 'Copyright')
   }
   const GROUPS: Array<[string, string[]]> = [
     [t('tools.g.import', 'Import'), ['importVideo', 'importFolder', 'importLink', 'importBgm', 'importAiVoice']],
@@ -143,7 +145,7 @@ export function ToolButtons() {
     [t('tools.g.subs', 'Subtitles'), ['importSrt', 'exportSrt', 'burnSubtitles', 'subCover']],
     [t('tools.g.video', 'Video'), ['text', 'stickers', 'watermark', 'ads', 'flip']],
     [t('tools.g.ai', 'AI'), ['aiVideo', 'automate']],
-    [t('tools.g.more', 'More'), ['source']]
+    [t('tools.g.more', 'More'), ['copyright', 'source']]
   ]
   const byKey = new Map(tools.map((x) => [x.key, x]))
   const listed = new Set(GROUPS.flatMap(([, k]) => k))

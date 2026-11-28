@@ -1,4 +1,4 @@
-import { AudioWaveform, Captions, Download, Film, Image as ImageIcon, Languages, Mic2, ScanText, Sparkles, Users, Wand2, Wrench, type LucideIcon } from 'lucide-react'
+import { AudioWaveform, Captions, Download, Film, Image as ImageIcon, Languages, Mic2, ScanText, ShieldCheck, Sparkles, Users, Wand2, Wrench, type LucideIcon } from 'lucide-react'
 import type { JobInfo } from '@shared/types'
 
 export interface JobMeta {
@@ -22,6 +22,7 @@ const META: Record<string, JobMeta> = {
   polish: { group: 'Voice Polish', icon: Wand2, tint: 'text-violet-500 bg-violet-500/10' },
   genvideo: { group: 'AI Video', icon: Sparkles, tint: 'text-pink-500 bg-pink-500/10' },
   thumbnail: { group: 'AI Thumbnail', icon: ImageIcon, tint: 'text-fuchsia-500 bg-fuchsia-500/10' },
+  copyright: { group: 'Copyright Check', icon: ShieldCheck, tint: 'text-emerald-500 bg-emerald-500/10' },
   castvoice: { group: 'Speaker Detection', icon: Users, tint: 'text-amber-500 bg-amber-500/10' },
   story: { group: 'Claude Video', icon: Sparkles, tint: 'text-orange-500 bg-orange-500/10' },
   ocr: { group: 'Screen OCR', icon: ScanText, tint: 'text-lime-600 bg-lime-500/10' },

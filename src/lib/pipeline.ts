@@ -1,5 +1,6 @@
 // Renderer-side orchestration: build job payloads from project state, apply results back (undoable).
 
+import { assessCopyright, type CopyrightReport, type MusicFinding } from '@shared/copyright'
 import { toast } from 'sonner'
 import type { Actor, AgeGroup, Aspect, Episode, MediaInfo, Segment, SttEngine, Translator, Voice } from '@shared/types'
 import { CAPTION_PRESETS, DEFAULT_CAPTIONS } from '@shared/captions'
@@ -1432,4 +1433,31 @@ export async function makeThumbnails(epId: string, o: ThumbOptions): Promise<{ f
     name: `${p.name} ${e.label} thumbnail`
   })
   return { ...r, plan: { moments: plan.moments, scene: plan.scene } }
+}
+
+// ───────── copyright check ─────────
+
+/** Listen for music in the source and judge the export's YouTube / Facebook / TikTok copyright risk. */
+export async function copyrightCheck(epId?: string): Promise<CopyrightReport> {
+  const e = ep(epId)
+  needVideo(e)
+  const p = P().project!
+  const st = p.settings
+  const music = await runJob<MusicFinding>(
+    'copyright',
+    { videoPath: e.videoPath, epDir: epDir(e), durationSec: e.durationSec, instrumental: e.stems.instrumental, geminiModel: S().geminiModel },
+    e.id
+  )
+  const edited = e.edit.enabled && (e.edit.clips.length > 0 || e.edit.aspect !== 'source')
+  return assessCopyright({
+    music,
+    muteOriginal: st.muteOriginal,
+    keepOriginal: st.keepOriginal,
+    autoOriginal: (st.autoOriginal ?? true) && !e.voiceTrack,
+    instrumentalUnderDub: !!e.stems.instrumental,
+    hasDub: e.segments.some((s) => s.audioPath) || !!e.voiceTrack,
+    ownBgm: !!e.edit.bgm,
+    licence: !!p.source?.licence?.trim(),
+    transformed: edited || !!st.flip?.h || !!e.overlays?.length || !!st.burnSubtitles
+  })
 }

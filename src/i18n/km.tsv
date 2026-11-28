@@ -1179,3 +1179,72 @@ fx.s.hit	ទង្គិចរំភើប
 fx.s.riser	ឡើងខ្ពស់
 fx.s.heartbeat	ចង្វាក់បេះដូង
 fx.s.beep	ប៊ីប (បិទពាក្យ)
+tools.stickers	ស្ទីគ័រ
+tools.s.stickers	ស្ទីគ័រ
+tools.text	អក្សរ
+tools.s.text	អក្សរ
+tools.copyright	ពិនិត្យរក្សាសិទ្ធិ
+tools.s.copyright	រក្សាសិទ្ធិ
+jobGroup.copyright	ពិនិត្យរក្សាសិទ្ធិ
+ov.title	ស្ទីគ័រ និងអក្សរ
+ov.desc	ធាតុថ្មីលេចឡើងនៅទីតាំងចាក់ ({{time}}) រយៈពេល ៣ វិនាទី។ បិទផ្ទាំងនេះ ហើយអូសវានៅលើវីដេអូដើម្បីដាក់ទីតាំង។
+ov.tStickers	ស្ទីគ័រ
+ov.tText	រចនាប័ទ្មអក្សរ
+ov.tList	ក្នុងភាគនេះ ({{n}})
+ov.own	ស្ទីគ័ររបស់អ្នក (PNG / GIF / វីដេអូ)…
+ov.gArrows	ព្រួញ និងការគូសចំណាំ
+ov.gSocial	Subscribe / Like / Follow
+ov.gShapes	រូបរាង
+ov.gBubbles	ពពុះសម្ដី
+ov.gLabels	ស្លាក
+ov.textPh	វាយអក្សររបស់អ្នក (ខ្មែរ ឬអង់គ្លេស)…
+ov.sample	អក្សររបស់អ្នក
+ov.added	បានបន្ថែមនៅ {{time}} — អូសវានៅលើវីដេអូដើម្បីផ្លាស់ទី ទាញជ្រុងដើម្បីប្ដូរទំហំ
+ov.saveFirst	រក្សាទុកគម្រោងជាមុនសិន
+ov.empty	មិនទាន់មានអ្វីទេ — បន្ថែមស្ទីគ័រ ឬអក្សរ។
+ov.jump	ទៅទីនោះ
+ov.startHere	ចាប់ផ្ដើមនៅទីនេះ
+ov.endHere	បញ្ចប់នៅទីនេះ
+ov.remove	ដកចេញ
+ov.aNone	គ្មាន
+ov.aFade	រលាយ
+ov.aPop	លោតចេញ
+ov.aFloat	អណ្ដែត
+ov.s.classic	បុរាណ
+ov.s.yellow	លឿងដិត
+ov.s.neonPink	នីអុងផ្កាឈូក
+ov.s.neonCyan	នីអុងខៀវ
+ov.s.fire	ភ្លើង
+ov.s.gold	មាស
+ov.s.comic	កំប្លែង
+ov.s.retro	រេត្រូ
+ov.s.shadow3d	ស្រមោល 3D
+ov.s.boxBlack	ប្រអប់ខ្មៅ
+ov.s.boxRed	ប្រអប់ក្រហម
+ov.s.highlight	គូសពណ៌
+ov.s.pastel	ផាស្ទែល
+ov.s.mint	មីន
+ov.s.ice	ទឹកកក
+ov.s.minimal	សាមញ្ញ
+cr.title	ពិនិត្យរក្សាសិទ្ធិ
+cr.desc	មុនពេលបង្ហោះលើ YouTube, Facebook ឬ TikTok៖ AI ស្ដាប់រកបទចម្រៀង និងភ្លេងរឿងក្នុងប្រភព ហើយការពិនិត្យមើលអ្វីដែលការនាំចេញរបស់អ្នកពិតជាមាន។
+cr.start	ពិនិត្យភាគនេះ
+cr.again	ពិនិត្យម្ដងទៀតក្រោយការផ្លាស់ប្ដូរ
+cr.startHint	ចំណាយប្រហែលកន្លះនាទី។ ប្រើសោ Gemini របស់អ្នកដើម្បីស្ដាប់។
+cr.check	ពិនិត្យ
+cr.high	ហានិភ័យខ្ពស់
+cr.medium	មានហានិភ័យខ្លះ
+cr.low	ហានិភ័យទាប
+cr.fixed	រួចរាល់ — ពិនិត្យម្ដងទៀតដើម្បីមើលលទ្ធផលថ្មី
+cr.fMute	បិទសំឡេងដើម
+cr.fAuto	គ្មានសំឡេងដើមចន្លោះឃ្លា
+cr.fBgm	បន្ថែមភ្លេងរបស់អ្នក
+cr.fSource	បន្ថែមអាជ្ញាប័ណ្ណ
+cr.fFlip	ត្រឡប់រូបភាព
+cr.officialTitle	ការពិនិត្យផ្ទាល់របស់វេទិកា (ឥតគិតថ្លៃ)
+cr.yt	YouTube៖ បង្ហោះជា Private ជាមុន — YouTube Studio បង្ហាញ «Checks» រក្សាសិទ្ធិមុនពេលអ្នកផ្សាយ។
+cr.fb	Facebook៖ ក្រោយបង្ហោះ (មុនផ្សាយ) ការព្រមានរក្សាសិទ្ធិបង្ហាញក្នុងប្រកាស / Meta Business Suite។
+cr.tt	TikTok៖ សំឡេងដែលវាមិនអាចផ្ដល់អាជ្ញាប័ណ្ណ នឹងត្រូវបិទពេលអ្នកបង្ហោះ។ ប្រើ Commercial Music Library សម្រាប់គណនីអាជីវកម្ម។
+cr.note	ការពិនិត្យនេះគ្រាន់តែប៉ាន់ស្មានហានិភ័យ មិនមែនជាការសម្រេចរបស់វេទិកាទេ។
+export.cr	ពិនិត្យរក្សាសិទ្ធិជាមុន
+export.crHint	តើមានអ្វីអាចត្រូវបានទាមទារ បិទសំឡេង ឬបិទនៅលើ YouTube / Facebook / TikTok ទេ?

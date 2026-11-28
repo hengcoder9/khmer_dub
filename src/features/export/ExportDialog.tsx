@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
+import { useUi } from '@/store/ui'
 import { useTranslation } from 'react-i18next'
-import { CheckCircle2, FolderOpen, Loader2, Play } from 'lucide-react'
+import { CheckCircle2, FolderOpen, Loader2, Play, ShieldAlert } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox, Field, Input, Progress, Select } from '@/components/ui/controls'
@@ -214,6 +215,9 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
           )}
 
           <div className="flex justify-end gap-2">
+            <Button variant="outline" className="mr-auto" disabled={busy || !ep.videoPath} onClick={() => useUi.getState().set({ dialog: 'copyright' })} title={t('export.crHint', 'Is anything likely to be claimed, muted or blocked on YouTube / Facebook / TikTok?')}>
+              <ShieldAlert /> {t('export.cr', 'Check copyright first')}
+            </Button>
             <Button variant="ghost" onClick={onClose} disabled={busy}>
               {t('common.close', 'Close')}
             </Button>

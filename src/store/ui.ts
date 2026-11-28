@@ -12,7 +12,7 @@ interface UiState {
   zoom: number // px per second on the timeline
   previewEdit: boolean
   settings: SectionId | null
-  dialog: null | 'export' | 'automate' | 'newProject' | 'find' | 'clone' | 'link' | 'source' | 'watermark' | 'gateway' | 'account' | 'readscreen' | 'subcover' | 'ads' | 'effects' | 'overlays'
+  dialog: null | 'export' | 'automate' | 'newProject' | 'find' | 'clone' | 'link' | 'source' | 'watermark' | 'gateway' | 'account' | 'readscreen' | 'subcover' | 'ads' | 'effects' | 'overlays' | 'copyright'
   editingId: string | null
   intent: HomeIntent | null
   /** which tab the Stickers & text window opens on */

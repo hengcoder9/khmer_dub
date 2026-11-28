@@ -5,7 +5,7 @@ import { hasAccess, useAccount } from './account'
 import { useUi } from './ui'
 
 /** AI + export jobs need a signed-in account with an active plan or trial. */
-export const PAID_JOBS = new Set(['separate', 'transcribe', 'diarize', 'translate', 'tts', 'export', 'polish', 'genvideo', 'story', 'ocr', 'ocrarea', 'thumbnail', 'castvoice'])
+export const PAID_JOBS = new Set(['separate', 'transcribe', 'diarize', 'translate', 'tts', 'export', 'polish', 'genvideo', 'story', 'ocr', 'ocrarea', 'thumbnail', 'castvoice', 'copyright'])
 
 export class AccessError extends Error {}
 
