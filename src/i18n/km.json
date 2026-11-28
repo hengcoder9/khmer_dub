@@ -587,7 +587,34 @@
     "ads": "ពាណិជ្ជកម្ម",
     "flip": "ត្រឡប់",
     "flipOn": "រូបភាពត្រូវបានត្រឡប់ (ឆ្វេង ↔ ស្ដាំ) — ក្នុងការមើលជាមុន និងការនាំចេញ។ អក្សររត់នៅតែអានបាន។",
-    "flipOff": "រូបភាពត្រឡប់មកធម្មតាវិញ"
+    "flipOff": "រូបភាពត្រឡប់មកធម្មតាវិញ",
+    "s": {
+      "importVideo": "វីដេអូ",
+      "importFolder": "ថត",
+      "importLink": "តំណ",
+      "importBgm": "ភ្លេង",
+      "importAiVoice": "សំឡេង AI",
+      "separateVocals": "ដកភ្លេង",
+      "muteOriginal": "បិទសំឡេង",
+      "importSrt": "នាំចូល SRT",
+      "exportSrt": "នាំចេញ SRT",
+      "burnSubtitles": "ដុតអក្សរ",
+      "subCover": "លាក់អក្សរ",
+      "watermark": "ត្រា",
+      "ads": "ពាណិជ្ជកម្ម",
+      "flip": "ត្រឡប់",
+      "aiVideo": "វីដេអូ AI",
+      "automate": "ស្វ័យប្រវត្តិ",
+      "source": "ប្រភព"
+    },
+    "g": {
+      "import": "នាំចូល",
+      "audio": "សំឡេង",
+      "subs": "អក្សររត់",
+      "video": "វីដេអូ",
+      "ai": "AI",
+      "more": "ផ្សេងៗ"
+    }
   },
   "top": {
     "closeProject": "បិទគម្រោង",

@@ -1107,3 +1107,26 @@ cast.woman	ស្ត្រី
 cast.man	បុរស
 cast.adult	មនុស្សពេញវ័យ
 jobGroup.castvoice	ស្គាល់អ្នកនិយាយ
+tools.s.importVideo	វីដេអូ
+tools.s.importFolder	ថត
+tools.s.importLink	តំណ
+tools.s.importBgm	ភ្លេង
+tools.s.importAiVoice	សំឡេង AI
+tools.s.separateVocals	ដកភ្លេង
+tools.s.muteOriginal	បិទសំឡេង
+tools.s.importSrt	នាំចូល SRT
+tools.s.exportSrt	នាំចេញ SRT
+tools.s.burnSubtitles	ដុតអក្សរ
+tools.s.subCover	លាក់អក្សរ
+tools.s.watermark	ត្រា
+tools.s.ads	ពាណិជ្ជកម្ម
+tools.s.flip	ត្រឡប់
+tools.s.aiVideo	វីដេអូ AI
+tools.s.automate	ស្វ័យប្រវត្តិ
+tools.s.source	ប្រភព
+tools.g.import	នាំចូល
+tools.g.audio	សំឡេង
+tools.g.subs	អក្សររត់
+tools.g.video	វីដេអូ
+tools.g.ai	AI
+tools.g.more	ផ្សេងៗ

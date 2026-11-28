@@ -107,31 +107,77 @@ export function ToolButtons() {
     { key: 'source', icon: ShieldCheck, label: t('tools.source', 'Source & licence'), active: hasSource, run: () => setUi({ dialog: 'source' }) }
   ]
 
-  const cls = (active?: boolean) => cn('ribbon-btn relative', active && 'after:absolute after:bottom-0.5 after:h-0.5 after:w-5 after:rounded-full after:bg-primary')
+  // short labels for the ribbon (the full name stays in the tooltip), grouped like a modern editor
+  const SHORT: Record<string, string> = {
+    importVideo: t('tools.s.importVideo', 'Video'),
+    importFolder: t('tools.s.importFolder', 'Folder'),
+    importLink: t('tools.s.importLink', 'Link'),
+    importBgm: t('tools.s.importBgm', 'BGM'),
+    importAiVoice: t('tools.s.importAiVoice', 'AI Voice'),
+    separateVocals: t('tools.s.separateVocals', 'Remove BGM'),
+    muteOriginal: t('tools.s.muteOriginal', 'Mute'),
+    importSrt: t('tools.s.importSrt', 'Import SRT'),
+    exportSrt: t('tools.s.exportSrt', 'Export SRT'),
+    burnSubtitles: t('tools.s.burnSubtitles', 'Burn Subs'),
+    subCover: t('tools.s.subCover', 'Hide Subs'),
+    watermark: t('tools.s.watermark', 'Watermark'),
+    ads: t('tools.s.ads', 'Ads'),
+    flip: t('tools.s.flip', 'Flip'),
+    aiVideo: t('tools.s.aiVideo', 'AI Video'),
+    automate: t('tools.s.automate', 'Automate'),
+    source: t('tools.s.source', 'Source')
+  }
+  const GROUPS: Array<[string, string[]]> = [
+    [t('tools.g.import', 'Import'), ['importVideo', 'importFolder', 'importLink', 'importBgm', 'importAiVoice']],
+    [t('tools.g.audio', 'Audio'), ['separateVocals', 'muteOriginal']],
+    [t('tools.g.subs', 'Subtitles'), ['importSrt', 'exportSrt', 'burnSubtitles', 'subCover']],
+    [t('tools.g.video', 'Video'), ['watermark', 'ads', 'flip']],
+    [t('tools.g.ai', 'AI'), ['aiVideo', 'automate']],
+    [t('tools.g.more', 'More'), ['source']]
+  ]
+  const byKey = new Map(tools.map((x) => [x.key, x]))
+  const listed = new Set(GROUPS.flatMap(([, k]) => k))
+  // a tool not placed in a group yet still shows (in "More")
+  GROUPS[GROUPS.length - 1][1].push(...tools.filter((x) => !listed.has(x.key)).map((x) => x.key))
 
-  // one row of icon tools across the top of the workspace (scrolls sideways on small windows)
+  const button = ({ key, icon: Icon, label, run, active, needsVideo, menu }: Tool) => {
+    const disabled = !!busy || (needsVideo && !ep?.videoPath)
+    const icon = busy === key ? <Loader2 className="size-[18px] animate-spin" /> : <Icon className="size-[18px]" strokeWidth={1.8} />
+    const body = (
+      <>
+        {icon}
+        <span className="whitespace-nowrap">{SHORT[key] ?? label}</span>
+      </>
+    )
+    if (menu)
+      return (
+        <DropdownMenu key={key}>
+          <DropdownTrigger asChild>
+            <button className="ribbon-btn" data-active={!!active} disabled={disabled} title={label}>
+              {body}
+            </button>
+          </DropdownTrigger>
+          <DropdownContent>{menu}</DropdownContent>
+        </DropdownMenu>
+      )
+    return (
+      <button key={key} disabled={disabled} onClick={run && wrap(key, run)} className="ribbon-btn" data-active={!!active} title={label}>
+        {body}
+      </button>
+    )
+  }
+
+  // one row of grouped icon tools across the top of the workspace (scrolls sideways on small windows)
   return (
-    <div className="flex min-w-0 items-center gap-0.5 overflow-x-auto [scrollbar-width:thin]">
-      {tools.map(({ key, icon: Icon, label, run, active, needsVideo, menu }) => {
-        const disabled = !!busy || (needsVideo && !ep?.videoPath)
-        const icon = busy === key ? <Loader2 className="size-[18px] animate-spin" /> : <Icon className="size-[18px]" strokeWidth={1.8} />
-        if (menu)
-          return (
-            <DropdownMenu key={key}>
-              <DropdownTrigger asChild>
-                <button className={cls(active)} data-active={!!active} disabled={disabled} title={label}>
-                  {icon}
-                  <span className="line-clamp-1 w-full truncate text-center">{label}</span>
-                </button>
-              </DropdownTrigger>
-              <DropdownContent>{menu}</DropdownContent>
-            </DropdownMenu>
-          )
+    <div className="flex min-w-0 items-stretch overflow-x-auto [scrollbar-width:thin]">
+      {GROUPS.map(([name, keys], gi) => {
+        const items = keys.map((k) => byKey.get(k)).filter((x): x is Tool => !!x)
+        if (!items.length) return null
         return (
-          <button key={key} disabled={disabled} onClick={run && wrap(key, run)} className={cls(active)} data-active={!!active} title={label}>
-            {icon}
-            <span className="line-clamp-1 w-full truncate text-center">{label}</span>
-          </button>
+          <div key={name} className={cn('flex shrink-0 flex-col', gi > 0 && 'ml-1.5 border-l pl-1.5')}>
+            <span className="px-1.5 pt-0.5 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/70">{name}</span>
+            <div className="flex items-center gap-0.5">{items.map(button)}</div>
+          </div>
         )
       })}
     </div>

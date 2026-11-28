@@ -169,13 +169,17 @@
   }
   /* one tool in the ribbon: icon over a short label */
   .ribbon-btn {
-    @apply flex h-[52px] w-[66px] shrink-0 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[11px] leading-none text-muted-foreground transition-colors;
+    @apply flex h-[46px] min-w-[52px] shrink-0 flex-col items-center justify-center gap-1 rounded-lg px-2 text-[11px] font-medium leading-none text-muted-foreground transition-colors;
   }
   .ribbon-btn:hover {
     @apply bg-accent text-foreground;
   }
+  /* a tool that is on: soft coloured pill */
   .ribbon-btn[data-active='true'] {
-    @apply text-primary;
+    @apply bg-primary/10 text-primary;
+  }
+  .ribbon-btn[data-active='true']:hover {
+    @apply bg-primary/15;
   }
   .ribbon-btn:disabled {
     @apply pointer-events-none opacity-35;
